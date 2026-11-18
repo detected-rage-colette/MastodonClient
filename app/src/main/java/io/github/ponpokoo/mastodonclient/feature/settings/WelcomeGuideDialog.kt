@@ -46,13 +46,10 @@ internal const val USAGE_GUIDE_URL = "https://ponpokoo.github.io/nagisa-policy/g
 internal data class AppUpdateNotice(val versionCode: Int, val highlights: List<String>)
 
 internal val appUpdateNotice = AppUpdateNotice(
-    versionCode = 36,
+    versionCode = 37,
     highlights = listOf(
-        "プロフィールの編集画面を使いやすくしました。",
-        "画像の切り出しに対応しました。",
-        "各種設定の初期値を変更しました。",
-        "ホーム・会話・通知の読み込みや更新時の処理を見直しました。",
-        "投稿詳細で本文の選択を解除した後に「すべてを選択」が残る不具合を修正しました。",
+        "タイムラインの先頭で新着投稿を受け取ったときの動きと、先頭へ戻るスクロールをより滑らかにしました。",
+        "画面の進む・戻る操作と、画面端からのスワイプで戻るアニメーションをより自然な動きに調整しました。",
     ),
 )
 
