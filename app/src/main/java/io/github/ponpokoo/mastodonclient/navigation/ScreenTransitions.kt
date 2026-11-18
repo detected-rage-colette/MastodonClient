@@ -3,10 +3,12 @@ package io.github.ponpokoo.mastodonclient.navigation
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -19,14 +21,22 @@ import androidx.navigation.compose.composable
 import androidx.navigation.createGraph
 import kotlin.math.roundToInt
 
-private const val ScreenEnterDurationMillis = 220
+private const val ScreenEnterDurationMillis = 240
+private const val ScreenEnterFadeDurationMillis = 180
+private const val ScreenEnterSlideFraction = 0.12f
 private const val ScreenPopDurationMillis = 240
 private const val ScreenSlideFraction = 0.35f
-private const val ScreenFadeStartFraction = 0.55f
-private const val ScreenFadeEndFraction = 0.90f
-private val ScreenPopFadeDelayMillis = (ScreenPopDurationMillis * ScreenFadeStartFraction).roundToInt()
-private val ScreenPopFadeDurationMillis =
-    (ScreenPopDurationMillis * ScreenFadeEndFraction).roundToInt() - ScreenPopFadeDelayMillis
+private const val ScreenPopFadeDelayMillis = 20
+private const val ScreenPopFadeDurationMillis = 190
+private const val ScreenPredictiveFadeStartFraction = 0.20f
+private const val ScreenFadeEndFraction = 0.88f
+private val ScreenPredictiveFadeDelayMillis =
+    (ScreenPopDurationMillis * ScreenPredictiveFadeStartFraction).roundToInt()
+private val ScreenPredictiveFadeDurationMillis =
+    (ScreenPopDurationMillis * ScreenFadeEndFraction).roundToInt() - ScreenPredictiveFadeDelayMillis
+
+private val ScreenTransitionEaseOut = CubicBezierEasing(0.23f, 1f, 0.32f, 1f)
+private val ScreenPopFadeEasing = CubicBezierEasing(0.3f, 0f, 0.8f, 1f)
 
 @Composable
 internal fun ScreenNavHost(
@@ -47,23 +57,39 @@ internal fun ScreenNavHost(
         navController = navController,
         graph = graph,
         modifier = modifier,
-        enterTransition = { fadeIn(tween(ScreenEnterDurationMillis)) },
-        exitTransition = { fadeOut(tween(ScreenEnterDurationMillis)) },
+        enterTransition = { screenEnterTransition() },
+        exitTransition = { fadeOut(tween(ScreenEnterDurationMillis, easing = ScreenTransitionEaseOut)) },
         popEnterTransition = { EnterTransition.None },
         popExitTransition = { screenPopExitTransition() },
         predictivePopEnterTransition = { EnterTransition.None },
-        // Navigation seeks this same transition and restores it on gesture cancellation.
-        predictivePopExitTransition = { screenPopExitTransition() },
+        // Navigation seeks this transition proportionally with gesture progress and restores it on cancellation.
+        predictivePopExitTransition = { screenPredictivePopExitTransition() },
     )
 }
 
+private fun screenEnterTransition(): EnterTransition =
+    slideInHorizontally(
+        animationSpec = tween(ScreenEnterDurationMillis, easing = ScreenTransitionEaseOut),
+        initialOffsetX = { width -> (width * ScreenEnterSlideFraction).roundToInt() },
+    ) + fadeIn(tween(ScreenEnterFadeDurationMillis, easing = ScreenTransitionEaseOut))
+
 private fun screenPopExitTransition(): ExitTransition =
     slideOutHorizontally(
-        animationSpec = tween(ScreenPopDurationMillis, easing = LinearEasing),
+        animationSpec = tween(ScreenPopDurationMillis, easing = ScreenTransitionEaseOut),
         targetOffsetX = { width -> (width * ScreenSlideFraction).roundToInt() },
     ) + fadeOut(tween(
         durationMillis = ScreenPopFadeDurationMillis,
         delayMillis = ScreenPopFadeDelayMillis,
+        easing = ScreenPopFadeEasing,
+    ))
+
+private fun screenPredictivePopExitTransition(): ExitTransition =
+    slideOutHorizontally(
+        animationSpec = tween(ScreenPopDurationMillis, easing = LinearEasing),
+        targetOffsetX = { width -> (width * ScreenSlideFraction).roundToInt() },
+    ) + fadeOut(tween(
+        durationMillis = ScreenPredictiveFadeDurationMillis,
+        delayMillis = ScreenPredictiveFadeDelayMillis,
         easing = LinearEasing,
     ))
 

@@ -91,29 +91,33 @@ class PredictiveBackNavigationDeviceTest(
         rule.runOnIdle { runBlocking { middleList.scrollToItem(12, 23) } }
         val originalPosition = rule.runOnIdle { middleList.firstVisibleItemIndex to middleList.firstVisibleItemScrollOffset }
         val viewport = rule.onNodeWithTag("middle").getUnclippedBoundsInRoot()
+        val middleBounds = rule.onNodeWithTag("middle").fetchSemanticsNode().boundsInRoot
+        val sampleX = middleBounds.center.x.toInt()
+        val sampleY = (middleBounds.top + middleBounds.height * 0.25f).toInt()
         rule.mainClock.autoAdvance = false
         rule.runOnIdle { if (typedRoutes) navigation.navigate(Detail) else navigation.navigate("detail") }
         rule.mainClock.advanceTimeBy(64)
-        assertEquals("Forward navigation slid the destination", viewport, rule.onNodeWithTag("detail").getUnclippedBoundsInRoot())
+        val earlyEnterBounds = rule.onNodeWithTag("detail").getUnclippedBoundsInRoot()
+        assertShortRightSlide(viewport, earlyEnterBounds)
         assertEquals("Forward navigation moved the background", viewport, rule.onNodeWithTag("middle").getUnclippedBoundsInRoot())
-        val earlyFade = rule.onRoot().captureToImage().toPixelMap()[2, 2]
+        val earlyFade = rule.onRoot().captureToImage().toPixelMap()[sampleX, sampleY]
         assertTrue("Forward navigation did not blend the screens", earlyFade.red > backdropColor.red && earlyFade.red < 1f)
         rule.mainClock.advanceTimeBy(64)
-        val laterFade = rule.onRoot().captureToImage().toPixelMap()[2, 2]
+        val laterEnterBounds = rule.onNodeWithTag("detail").getUnclippedBoundsInRoot()
+        assertTrue("Forward slide did not decelerate toward the viewport", laterEnterBounds.left < earlyEnterBounds.left)
+        val laterFade = rule.onRoot().captureToImage().toPixelMap()[sampleX, sampleY]
         assertTrue("Forward fade did not reveal the destination progressively", laterFade.red > earlyFade.red)
         rule.mainClock.autoAdvance = true
         rule.waitForIdle()
+        assertEquals(viewport, rule.onNodeWithTag("detail").getUnclippedBoundsInRoot())
         rule.onNodeWithTag("detail_edit").performClick()
-        val originalBounds = rule.onNodeWithTag("detail").fetchSemanticsNode().boundsInRoot
-        val sampleX = originalBounds.center.x.toInt()
-        val sampleY = (originalBounds.top + originalBounds.height * 0.25f).toInt()
 
         repeat(2) {
             startGesture()
             var previousMovement = 0f
             var previousRed = 1f
             var movementPerProgress: Float? = null
-            for (progress in listOf(0.25f, 0.5f, 0.6f, 0.8f)) {
+            for (progress in listOf(0.15f, 0.35f, 0.6f, 0.8f)) {
                 progressGesture(progress)
                 val bounds = rule.onNodeWithTag("detail").getUnclippedBoundsInRoot()
                 assertShortRightSlide(viewport, bounds)
@@ -127,7 +131,7 @@ class PredictiveBackNavigationDeviceTest(
                 val pixels = rule.onRoot().captureToImage().toPixelMap()
                 assertEquals("Background was dimmed or faded", backdropColor.toArgb(), pixels[2, sampleY].toArgb())
                 val foreground = pixels[sampleX, sampleY]
-                if (progress < 0.55f) {
+                if (progress < 0.20f) {
                     assertEquals("Foreground faded before the delayed fade should start", Color.Red.toArgb(), foreground.toArgb())
                 } else {
                     assertTrue("Foreground did not fade over the previous screen", foreground.red > backdropColor.red && foreground.red < previousRed)
@@ -170,11 +174,15 @@ class PredictiveBackNavigationDeviceTest(
             assertTrue(if (typedRoutes) navigation.currentDestination!!.hasRoute<Middle>() else navigation.currentDestination!!.route == "middle")
             assertFalse(rule.activity.isFinishing)
         }
-        // Button/three-button back uses the same short slide without moving the destination.
+        // Button/three-button back uses an eased short slide without moving the destination.
         rule.mainClock.autoAdvance = false
         rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
-        rule.mainClock.advanceTimeBy(64)
-        assertShortRightSlide(viewport, rule.onNodeWithTag("middle").getUnclippedBoundsInRoot())
+        rule.mainClock.advanceTimeBy(80)
+        val earlyPopBounds = rule.onNodeWithTag("middle").getUnclippedBoundsInRoot()
+        assertShortRightSlide(viewport, earlyPopBounds)
+        val earlyPopDistance = (earlyPopBounds.left - viewport.left).value
+        val fullPopDistance = (viewport.right - viewport.left).value * 0.35f
+        assertTrue("Button back should decelerate rather than move linearly", earlyPopDistance > fullPopDistance * 0.5f)
         assertEquals(viewport, rule.onNodeWithTag("root").getUnclippedBoundsInRoot())
         rule.mainClock.autoAdvance = true
         rule.waitForIdle()
