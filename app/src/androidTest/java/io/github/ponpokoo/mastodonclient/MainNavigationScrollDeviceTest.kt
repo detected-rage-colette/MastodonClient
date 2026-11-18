@@ -109,6 +109,24 @@ class MainNavigationScrollDeviceTest {
         }
     }
 
+    @Test fun animateShowSmoothlyRevealsCollapsedBar() {
+        show()
+        rule.mainClock.autoAdvance = false
+        rule.runOnIdle {
+            drag(-100f)
+            assertEquals(1f, navigation.hiddenFraction, 0.001f)
+            navigation.animateShow(scope)
+        }
+        rule.mainClock.advanceTimeBy(64)
+        rule.runOnIdle {
+            assertTrue("Bar should animate toward visible", navigation.hiddenFraction in 0.01f..0.99f)
+        }
+        rule.mainClock.advanceTimeBy(160)
+        rule.runOnIdle {
+            assertEquals(0f, navigation.hiddenFraction, 0.001f)
+        }
+    }
+
     @Test fun restorationPreservesTheSharedBarPosition() {
         val restoration = show()
         rule.runOnIdle {

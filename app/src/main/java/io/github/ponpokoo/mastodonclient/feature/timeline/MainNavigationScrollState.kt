@@ -14,6 +14,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
+private val HeaderSettleEasing = CubicBezierEasing(0.23f, 1f, 0.32f, 1f)
+
 /** The header observes input without consuming the list's distance or velocity. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Stable
@@ -26,6 +28,19 @@ internal class MainNavigationScrollState(private val header: TopAppBarState) {
         settleJob?.cancel()
         header.heightOffset = 0f
         header.contentOffset = 0f
+    }
+
+    fun animateShow(scope: CoroutineScope) {
+        settleJob?.cancel()
+        header.contentOffset = 0f
+        if (hiddenFraction == 0f) return
+        settleJob = scope.launch {
+            animate(
+                initialValue = hiddenFraction,
+                targetValue = 0f,
+                animationSpec = tween(160, easing = HeaderSettleEasing),
+            ) { value, _ -> header.heightOffset = header.heightOffsetLimit * value }
+        }
     }
 
     private fun dragBy(deltaY: Float) {
@@ -42,7 +57,7 @@ internal class MainNavigationScrollState(private val header: TopAppBarState) {
             animate(
                 initialValue = hiddenFraction,
                 targetValue = target,
-                animationSpec = tween(160, easing = CubicBezierEasing(0.23f, 1f, 0.32f, 1f)),
+                animationSpec = tween(160, easing = HeaderSettleEasing),
             ) { value, _ -> header.heightOffset = header.heightOffsetLimit * value }
         }
     }

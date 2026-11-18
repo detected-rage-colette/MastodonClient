@@ -1,14 +1,23 @@
 package io.github.ponpokoo.mastodonclient.feature.timeline
 
 import androidx.compose.animation.core.AnimationState
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateTo
 import androidx.compose.animation.core.copy
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.lazy.LazyLayoutScrollScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.layout.LazyLayoutScrollScope as LayoutScrollScope
+import kotlin.math.roundToInt
+
+private val TopReturnDecelerateEasing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
+// Quadratic ease-out (initial derivative = 2.0) matches the incoming linear approach velocity.
+private val TopSettleContinuationEasing = Easing { fraction ->
+    val remaining = 1f - fraction
+    1f - remaining * remaining
+}
 
 /** Return a list, optionally followed by its shared profile header, as one scroll animation. */
 internal suspend fun LazyListState.animateToTimelineTop(headerListState: LazyListState? = null) {
@@ -32,6 +41,8 @@ private class TopScrollTarget(val state: LazyListState, val layout: LayoutScroll
         val originalIndex = state.firstVisibleItemIndex
         val originalOffset = state.firstVisibleItemScrollOffset
         if (originalIndex == 0 && originalOffset <= maxDistance) return
+        val estimatedDistance = -layout.calculateDistanceTo(0)
+        if (estimatedDistance in 1..maxDistance) return
         layout.snapToItem(0, maxDistance)
         // Keep the closer position even when a tall first row normalizes the offset.
         if (state.firstVisibleItemIndex > originalIndex ||
@@ -43,7 +54,8 @@ private class TopScrollTarget(val state: LazyListState, val layout: LayoutScroll
 
 private suspend fun animateToTop(targets: List<TopScrollTarget>) {
     val viewport = targets.last().state.layoutInfo
-    val maxAnimatedDistance = (viewport.viewportEndOffset - viewport.viewportStartOffset).coerceAtLeast(1) * 2
+    val viewportHeight = (viewport.viewportEndOffset - viewport.viewportStartOffset).coerceAtLeast(1)
+    val maxAnimatedDistance = viewportHeight * 2
     // Reserve the header's distance first so the combined return is at most two viewports.
     // If the header alone fills this budget, posts reach their top before it is revealed.
     var remainingDistance = maxAnimatedDistance
@@ -62,14 +74,26 @@ private suspend fun animateToTop(targets: List<TopScrollTarget>) {
     }
     fun firstItemsVisible() = targets.all { it.state.firstVisibleItemIndex == 0 }
 
+    // When a single new post is anchored right below index 0, stepping 1px across the boundary
+    // composes index 0 immediately so its exact height can be animated with a single curve.
+    if (targets.size == 1 &&
+        targets[0].state.firstVisibleItemIndex == 1 &&
+        targets[0].state.firstVisibleItemScrollOffset == 0
+    ) {
+        scrollBy(-1f)
+    }
+
     val chunkDistance = maxAnimatedDistance.toFloat()
+    val nearTop = targets.all { it.state.firstVisibleItemIndex <= 3 }
+    val chunkDurationMillis = if (nearTop) 300 else 250
+    val approachVelocityPxPerMs = chunkDistance / chunkDurationMillis
     var animation = AnimationState(0f)
     var chunks = 0
     var reachedBoundary = false
     while (!firstItemsVisible() && targets.any { it.state.canScrollBackward } && !reachedBoundary) {
         animation = animation.copy(value = 0f)
         var previous = 0f
-        animation.animateTo(-chunkDistance, tween(250, easing = LinearEasing), sequentialAnimation = chunks > 0) {
+        animation.animateTo(-chunkDistance, tween(chunkDurationMillis, easing = LinearEasing), sequentialAnimation = chunks > 0) {
             val delta = value - previous
             val consumed = scrollBy(delta)
             previous = value
@@ -82,7 +106,18 @@ private suspend fun animateToTop(targets: List<TopScrollTarget>) {
         val finalDistance = targets.sumOf { it.state.firstVisibleItemScrollOffset }
         if (finalDistance > 0) {
             var previous = 0f
-            AnimationState(0f).animateTo(-finalDistance.toFloat(), tween(220, easing = LinearOutSlowInEasing)) {
+            val durationMillis = if (chunks == 0) {
+                (180 + (finalDistance.toFloat() / viewportHeight * 60f).roundToInt()).coerceIn(180, 240)
+            } else {
+                ((2f * finalDistance) / approachVelocityPxPerMs).roundToInt().coerceIn(90, 220)
+            }
+            val easing = if (chunks == 0) TopReturnDecelerateEasing else TopSettleContinuationEasing
+            animation = animation.copy(value = 0f)
+            animation.animateTo(
+                targetValue = -finalDistance.toFloat(),
+                animationSpec = tween(durationMillis, easing = easing),
+                sequentialAnimation = chunks > 0,
+            ) {
                 scrollBy(value - previous)
                 previous = value
             }

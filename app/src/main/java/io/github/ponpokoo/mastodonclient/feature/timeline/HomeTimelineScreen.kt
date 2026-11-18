@@ -280,7 +280,6 @@ fun HomeTimelineScreen(
             flingAnimationSpec = null,
         )
     }
-    val homeTopBarState = topBarStates[MainDestination.Home.ordinal]
     val currentTopBarState = topBarStates[destination.ordinal]
     val currentNavigationScrollState = navigationScrollStates[destination.ordinal]
     val scrollConnections = scrollBehaviors.mapIndexed { index, behavior ->
@@ -320,12 +319,14 @@ fun HomeTimelineScreen(
     }
     val isHomeVisible = destination == MainDestination.Home
     val homeNewestId = state.statuses.firstOrNull()?.timelineId
+    var isStreamAutoScrolling by remember { mutableStateOf(false) }
     val homeAtTop by remember(isHomeVisible, homeNewestId, lifecycleState) {
         derivedStateOf {
             isHomeVisible && isScreenResumed &&
-                timelineListState.firstVisibleItemIndex == 0 && timelineListState.firstVisibleItemScrollOffset == 0 &&
-                !timelineListState.isScrollInProgress && homeNewestId != null &&
-                timelineListState.layoutInfo.visibleItemsInfo.any { it.key == homeNewestId }
+                ((timelineListState.firstVisibleItemIndex == 0 && timelineListState.firstVisibleItemScrollOffset == 0 &&
+                    !timelineListState.isScrollInProgress && homeNewestId != null &&
+                    timelineListState.layoutInfo.visibleItemsInfo.any { it.key == homeNewestId }) ||
+                    isStreamAutoScrolling)
         }
     }
     val notificationsVisible = destination == MainDestination.Notifications
@@ -460,7 +461,12 @@ fun HomeTimelineScreen(
     LaunchedEffect(state.streamAutoScrollId, isHomeVisible, mainState.session?.sessionId, state.selectedFeed, isScreenResumed) {
         if (isHomeVisible && isScreenResumed && state.streamAutoScrollId > 0) {
             val requestId = state.streamAutoScrollId
-            timelineListState.scrollToItem(0)
+            isStreamAutoScrolling = true
+            try {
+                timelineListState.animateToTimelineTop()
+            } finally {
+                isStreamAutoScrolling = false
+            }
             delay(1_800)
             viewModel.consumeStreamNotice(requestId)
         }
@@ -476,7 +482,7 @@ fun HomeTimelineScreen(
             homeRefreshStarted = true
         } else if (homeRefreshStarted) {
             if (scrollHomeAfterRefresh) {
-                navigationScrollStates[MainDestination.Home.ordinal].show()
+                navigationScrollStates[MainDestination.Home.ordinal].animateShow(topScrollScope)
                 timelineListState.animateToTimelineTop()
             }
             homeRefreshStarted = false
@@ -577,9 +583,7 @@ fun HomeTimelineScreen(
                     val history = tabHistory.forSession(sessionId)
                     if (history.selected == item && destination == item) {
                         topScrollScope.launch {
-                            currentTopBarState.heightOffset = 0f
-                            currentTopBarState.contentOffset = 0f
-                            currentNavigationScrollState.show()
+                            currentNavigationScrollState.animateShow(topScrollScope)
                             when (item) {
                                 MainDestination.Home -> {
                                     if (state.isResumedWindow) viewModel.goToLatest()
@@ -784,9 +788,7 @@ fun HomeTimelineScreen(
                 notice = homeNotice.notice.takeIf { destination == MainDestination.Home },
                 snackbarHostState = snackbarHostState,
                 onClick = {
-                    homeTopBarState.heightOffset = 0f
-                    homeTopBarState.contentOffset = 0f
-                    navigationScrollStates[MainDestination.Home.ordinal].show()
+                    navigationScrollStates[MainDestination.Home.ordinal].animateShow(topScrollScope)
                     if (state.isResumedWindow) viewModel.goToLatest()
                     else topScrollScope.launch { timelineListState.animateToTimelineTop() }
                 },
@@ -1082,12 +1084,16 @@ internal fun TimelineContent(
     val rows = remember(state.statuses, state.homeIndex, state.automaticGapCheck) { state.displayRows() }
     val rowKeys = remember(rows) { rows.map { it.key } }
     var previousKeys by remember(listState) { mutableStateOf<List<Any>>(emptyList()) }
+    var previousStreamAutoScrollId by remember(listState) { mutableLongStateOf(state.streamAutoScrollId) }
     // Explicitly preserve the visible post, including index zero. Capture the viewport
     // at application time, not request time, so scrolling during HTTP is respected.
     SideEffect {
+        val streamArrivalAtTop = state.streamAutoScrollId > 0L &&
+            state.streamAutoScrollId != previousStreamAutoScrollId
+        previousStreamAutoScrollId = state.streamAutoScrollId
         if (previousKeys != rowKeys) {
-            val anchor = if (preferences.keepPositionOnPullRefresh &&
-                state.resumeAnchorId == null && state.streamAutoScrollId == 0L &&
+            val anchor = if ((preferences.keepPositionOnPullRefresh || streamArrivalAtTop) &&
+                state.resumeAnchorId == null &&
                 previousKeys.isNotEmpty() && !listState.isScrollInProgress) {
                 listState.layoutInfo.visibleItemsInfo.firstOrNull { item ->
                     item.key is String && item.key in previousKeys && item.key in rowKeys

@@ -1,6 +1,7 @@
 package io.github.ponpokoo.mastodonclient.feature.common
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -155,6 +156,9 @@ internal fun NewItemsNoticeEffect(state: NewItemsNoticeState, visible: Boolean) 
     }
 }
 
+private val NoticeEnterEasing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
+private val NoticeExitEasing = CubicBezierEasing(0.4f, 0f, 1f, 1f)
+
 /** The normal notice anchor stays unchanged; simultaneous messages occupy the row above it. */
 @Composable
 internal fun TimelineNoticeStack(
@@ -174,8 +178,10 @@ internal fun TimelineNoticeStack(
         }
         AnimatedVisibility(
             visible = notice != null,
-            enter = fadeIn(tween(180)) + slideInVertically(tween(180)) { -distance },
-            exit = fadeOut(tween(120)) + slideOutVertically(tween(120)) { -distance },
+            enter = fadeIn(tween(180, easing = NoticeEnterEasing)) +
+                slideInVertically(tween(180, easing = NoticeEnterEasing)) { -distance },
+            exit = fadeOut(tween(120, easing = NoticeExitEasing)) +
+                slideOutVertically(tween(120, easing = NoticeExitEasing)) { -distance },
         ) {
             lastNotice?.let { shown ->
                 TimelineNotice(shown.message, onClick = onClick.takeIf { notice?.actionable == true },

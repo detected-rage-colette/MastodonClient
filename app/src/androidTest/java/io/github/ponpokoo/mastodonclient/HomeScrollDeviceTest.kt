@@ -399,6 +399,29 @@ class HomeScrollDeviceTest {
         }
     }
 
+    @Test fun streamArrivalAtTopSmoothlySlidesIntoPlaceWithoutPendingPrompt() = withHomeTimeline(statusCount = 20) { main, timeline, statuses ->
+        rule.waitForIdle()
+        assertEquals(0f, scrollPosition(), 0f)
+        rule.mainClock.autoAdvance = false
+        try {
+            rule.runOnUiThread {
+                main.viewModelScope.launch {
+                    main.browsing.publish(main.browsing.snapshot.value, BrowsingSession.Change.Stream(
+                        TimelineStreamEvent.StatusAdded(statuses.first().copy(timelineId = "top-live", statusId = "top-live")),
+                    ))
+                }
+            }
+            rule.mainClock.advanceTimeByFrame()
+            rule.mainClock.advanceTimeBy(32)
+            assertTrue("New arrival at top should animate from the anchored previous top post", scrollPosition() > 0f)
+            rule.runOnIdle { assertTrue(timeline.uiState.value.pendingNewStatusIds.isEmpty()) }
+            rule.mainClock.advanceTimeBy(400)
+            assertEquals(0f, scrollPosition(), 0f)
+        } finally {
+            rule.mainClock.autoAdvance = true
+        }
+    }
+
     @Test fun swipingDuringHomeAnimationKeepsTheUsersNewPosition() = withHomeTimeline { _, _, _ ->
         rule.onNodeWithTag("timeline_list").performScrollToIndex(140)
         rule.mainClock.autoAdvance = false
