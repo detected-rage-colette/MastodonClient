@@ -50,6 +50,7 @@ fun AccountProfileScreen(
     }, snackbarHost = { SnackbarHost(snackbarHostState) }) { padding ->
         ProfileScreen(viewModel, preferences, padding, snackbarHostState, onStatusClick, onReply, onQuote,
             onOpenLink, onAccountClick, onMediaClick, onFollowers, onFollowing, onOpenLists,
-            onOpenBookmarks, onOpenFavourites, onEditStatus, openEditor = openEditor, onOpenReactions = onOpenReactions)
+            onOpenBookmarks, onOpenFavourites, onEditStatus, openEditor = openEditor, onOpenReactions = onOpenReactions,
+            drawBehindBottomBar = true)
     }
 }

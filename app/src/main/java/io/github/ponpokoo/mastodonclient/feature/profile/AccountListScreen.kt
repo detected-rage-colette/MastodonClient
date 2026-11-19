@@ -55,6 +55,7 @@ import coil3.compose.AsyncImage
 import io.github.ponpokoo.mastodonclient.domain.model.AccountRelationship
 import io.github.ponpokoo.mastodonclient.domain.model.StatusAuthor
 import io.github.ponpokoo.mastodonclient.feature.common.CustomEmojiText
+import io.github.ponpokoo.mastodonclient.feature.common.withoutBottomPadding
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 @Composable
@@ -152,7 +153,11 @@ fun AccountListScreen(
                 Text(state.errorMessage.orEmpty(), color = MaterialTheme.colorScheme.error)
                 TextButton(onClick = viewModel::retry) { Text("再試行") }
             }
-            else -> LazyColumn(Modifier.fillMaxSize().padding(padding), state = listState) {
+            else -> LazyColumn(
+                Modifier.fillMaxSize().padding(padding.withoutBottomPadding()),
+                state = listState,
+                contentPadding = PaddingValues(bottom = padding.calculateBottomPadding() + 8.dp),
+            ) {
                 if (state.relationshipError != null) item {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(state.relationshipError.orEmpty(), modifier = Modifier.weight(1f),

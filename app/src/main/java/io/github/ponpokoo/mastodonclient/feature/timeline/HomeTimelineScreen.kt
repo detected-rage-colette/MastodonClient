@@ -1135,13 +1135,27 @@ internal fun TimelineContent(
                 IntOffset(0, (with(contentDensity) { topContentPadding.roundToPx() } + headerCollapseOffset()).coerceAtLeast(0))
             },
         ) {
+            val statusActions = StatusActions(
+                onReply = onReply,
+                onBoost = onBoost,
+                onQuote = onQuote,
+                onFavourite = onFavourite,
+                onBookmark = onBookmark,
+                onReact = onReact,
+                onVotePoll = onVotePoll,
+            )
+            val displayPreferences = preferences.toStatusDisplayPreferences()
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize().testTag("timeline_list"),
                 contentPadding = PaddingValues(top = topContentPadding,
                     bottom = if (drawBehindBottomBar) padding.calculateBottomPadding() else 0.dp),
             ) {
-                items(items = rows, key = { it.key }) { row ->
+                items(
+                    items = rows,
+                    key = { it.key },
+                    contentType = { if (it is TimelineRow.Gap) "gap" else "post" },
+                ) { row ->
                     if (row is TimelineRow.Gap) {
                         TimelineGapRow(
                             loading = state.loadingGapId == row.gap.beforeId,
@@ -1163,25 +1177,17 @@ internal fun TimelineContent(
                         onAuthorClick = onAccountClick,
                         onMediaClick = onMediaClick,
                         onOpenLink = onOpenLink,
-                        actions = StatusActions(
-                            onReply = onReply,
-                            onBoost = onBoost,
-                            onQuote = onQuote,
-                            onFavourite = onFavourite,
-                            onBookmark = onBookmark,
-                            onReact = onReact,
-                            onVotePoll = onVotePoll,
-                        ),
+                        actions = statusActions,
                         onMoreClick = onMoreClick,
                         onUnavailableAction = onUnavailableAction,
-                        preferences = preferences.toStatusDisplayPreferences(),
+                        preferences = displayPreferences,
                         useTimelineImagePreviews = true,
                         reactionPickerMotion = EmojiPickerSheetMotion.Standard,
                     )
                     HorizontalDivider()
                 }
                 if (state.isLoadingMore) {
-                    item {
+                    item(contentType = "loading_more") {
                         Box(
                             modifier = Modifier.fillMaxWidth().padding(20.dp),
                             contentAlignment = Alignment.Center,
@@ -1190,7 +1196,7 @@ internal fun TimelineContent(
                         }
                     }
                 } else if (state.errorMessage != null) {
-                    item {
+                    item(contentType = "retry") {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(12.dp),
                             horizontalArrangement = Arrangement.Center,
@@ -1201,7 +1207,7 @@ internal fun TimelineContent(
                     }
                 }
                 if (state.isShowingSavedStatuses) {
-                    item(key = "home_cache_notice") {
+                    item(key = "home_cache_notice", contentType = "cache_notice") {
                         Text("保存済みのタイムラインを表示しています",
                             modifier = Modifier.fillMaxWidth().padding(12.dp),
                             style = MaterialTheme.typography.bodySmall,

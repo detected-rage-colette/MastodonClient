@@ -230,28 +230,46 @@ internal fun NotificationsContent(
                     val checkingCapabilities = !supported && state.isCheckingCapabilities
                     val initialLoading = supported && !pageState.isInitialPageLoaded &&
                         filteredNotifications.isEmpty() && pageState.notificationsError == null
+                    val statusActions = StatusActions(
+                        onReply = onReply,
+                        onBoost = onBoost,
+                        onQuote = onQuote,
+                        onFavourite = onFavourite,
+                        onBookmark = onBookmark,
+                        onReact = onReact,
+                        onVotePoll = onVotePoll,
+                    )
+                    val displayPreferences = preferences.toStatusDisplayPreferences()
                     Box(Modifier.fillMaxSize()) {
                     LazyColumn(Modifier.fillMaxSize().testTag("notifications_list_${filter.name.lowercase()}"),
                         state = listStates[page], contentPadding = PaddingValues(top = overlayPadding, bottom = bottomPadding)) {
-                    if (!supported && !checkingCapabilities) item {
+                    if (!supported && !checkingCapabilities) item(contentType = "message") {
                         MessageContent("現在サポートしていません")
                     }
-                    else if (supported && !initialLoading && filteredNotifications.isEmpty() && pageState.notificationsError == null) item {
+                    else if (supported && !initialLoading && filteredNotifications.isEmpty() && pageState.notificationsError == null) item(contentType = "message") {
                         MessageContent(when {
                             pageState.notificationsEndReached -> "該当する通知はありません"
                             else -> "読み込んだ範囲に該当する通知はありません"
                         })
                     }
-                    items(if (supported) displayRows else emptyList(), key = NotificationDisplayRow::key) { row ->
+                    items(
+                        if (supported) displayRows else emptyList(),
+                        key = NotificationDisplayRow::key,
+                        contentType = { row ->
+                            when {
+                                row.latest.replyStatus() != null -> "reply_status"
+                                row.grouped -> "grouped_notification"
+                                else -> "notification"
+                            }
+                        },
+                    ) { row ->
                         val notification = row.latest
-                        val status = notification.status
+                        val replyStatus = notification.replyStatus()
                         Column(Modifier.fillMaxWidth().background(
                             if (row.notificationIds.any(state.highlightedNotificationIds::contains)) highlightedBackground
                             else MaterialTheme.colorScheme.surface,
                         ).then(if (row.grouped) Modifier.testTag("notification_grouped_row") else Modifier)) {
-                        val isReply = notification.type.equals("mention", ignoreCase = true) ||
-                            notification.type.equals("reply", ignoreCase = true)
-                        if (isReply && status != null) {
+                        if (replyStatus != null) {
                             Row(
                                 Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -262,28 +280,20 @@ internal fun NotificationsContent(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             StatusCard(
-                                status = status,
+                                status = replyStatus,
                                 onStatusClick = onStatusClick,
                                 onAuthorClick = onAccountClick,
                                 onMediaClick = onMediaClick,
                                 onOpenLink = onOpenLink,
-                                actions = StatusActions(
-                                    onReply = onReply,
-                                    onBoost = onBoost,
-                                    onQuote = onQuote,
-                                    onFavourite = onFavourite,
-                                    onBookmark = onBookmark,
-                                    onReact = onReact,
-                                    onVotePoll = onVotePoll,
-                                ),
+                                actions = statusActions,
                                 onMoreClick = onMoreClick,
                                 onUnavailableAction = {},
-                                preferences = preferences.toStatusDisplayPreferences(),
+                                preferences = displayPreferences,
                             )
                         } else {
                             if (row.grouped) GroupedNotificationHeader(row, onAccountClick, preferences.timelineDisplay.avatarIconShape)
                             else NotificationHeader(notification, onAccountClick, preferences.timelineDisplay.avatarIconShape)
-                            status?.let {
+                            notification.status?.let {
                                 NotificationStatusQuote(
                                     status = it,
                                     onStatusClick = onStatusClick,
@@ -296,9 +306,9 @@ internal fun NotificationsContent(
                         }
                     }
                     if (supported && pageState.isLoadingMoreNotifications && !initialLoading && !isPullRefreshing) {
-                        item { ListLoadingMoreIndicator() }
+                        item(contentType = "loading_more") { ListLoadingMoreIndicator() }
                     } else if (supported && pageState.notificationsError != null) {
-                        item {
+                        item(contentType = "error") {
                             Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(pageState.notificationsError!!, color = MaterialTheme.colorScheme.error)
                                 TextButton(onClick = if (pageState.notificationsErrorIsPagination) onLoadMore else onRefresh) {
@@ -307,7 +317,7 @@ internal fun NotificationsContent(
                             }
                         }
                     } else if (supported && !pageState.isLoadingNotifications && !pageState.notificationsEndReached && pageState.notificationsNextMaxId != null) {
-                        item {
+                        item(contentType = "load_more") {
                             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                                 TextButton(onClick = onLoadMore) { Text("さらに読み込む") }
                             }
@@ -390,6 +400,9 @@ private fun GroupedNotificationHeader(
         }
     }
 }
+
+private fun TimelineNotification.replyStatus(): TimelineStatus? =
+    status?.takeIf { type.equals("mention", ignoreCase = true) || type.equals("reply", ignoreCase = true) }
 
 @Composable
 private fun NotificationHeader(

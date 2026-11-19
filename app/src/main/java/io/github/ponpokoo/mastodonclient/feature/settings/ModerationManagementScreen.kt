@@ -65,9 +65,17 @@ fun ModerationManagementScreen(viewModel: ModerationManagementViewModel, onBack:
     Scaffold(topBar = { TopAppBar(title = { Text("ミュート・ブロック・フィルター") }, navigationIcon = {
         IconButton(onClick = back) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "戻る") }
     }) }, snackbarHost = { SnackbarHost(snackbar, Modifier.testTag("management_snackbar")) }) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding).testTag("moderation_management_content")) {
-        LazyColumn(Modifier.fillMaxSize().testTag("moderation_management"), state = listState,
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)) {
+        Box(Modifier.fillMaxSize().padding(padding.withoutBottomPadding()).testTag("moderation_management_content")) {
+        LazyColumn(
+            Modifier.fillMaxSize().testTag("moderation_management"),
+            state = listState,
+            contentPadding = PaddingValues(
+                start = 20.dp,
+                top = 8.dp,
+                end = 20.dp,
+                bottom = 8.dp + padding.calculateBottomPadding(),
+            ),
+        ) {
             if (state.page == ModerationPage.Overview) {
                 item { AccountSwitcherRow(state.selected, { accountPicker = true }, Modifier.testTag("management_account_switcher"), enabled = state.sessions.isNotEmpty()) }
             }

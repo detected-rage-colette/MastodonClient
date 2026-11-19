@@ -73,8 +73,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -135,6 +137,7 @@ import io.github.ponpokoo.mastodonclient.ui.theme.onComposeSubmitContainer
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.core.text.HtmlCompat
 import androidx.core.net.toUri
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -169,6 +172,7 @@ fun ComposePostScreen(
     var screenHeightPx by remember { mutableIntStateOf(0) }
     val dismissThresholdPx = with(LocalDensity.current) { 96.dp.toPx() }
     var textFieldValue by remember { mutableStateOf(TextFieldValue()) }
+    var clearUndoJob by remember { mutableStateOf<Job?>(null) }
     fun applyToolbarEdit(value: TextFieldValue) {
         viewModel.onTextChanged(value.text)
         if (viewModel.uiState.value.text == value.text) textFieldValue = value
@@ -243,7 +247,17 @@ fun ComposePostScreen(
             viewModel.consumeActionMessage()
         }
     }
+    LaunchedEffect(state.selectedSession?.sessionId) {
+        if (clearUndoJob?.isActive == true) {
+            clearUndoJob?.cancel()
+            snackbarHostState.currentSnackbarData?.dismiss()
+        }
+    }
     LaunchedEffect(state.text) {
+        if (state.text.isNotEmpty() && clearUndoJob?.isActive == true) {
+            clearUndoJob?.cancel()
+            snackbarHostState.currentSnackbarData?.dismiss()
+        }
         if (textFieldValue.text != state.text) {
             textFieldValue = TextFieldValue(state.text, selection = TextRange(state.text.length))
         }
@@ -368,7 +382,30 @@ fun ComposePostScreen(
                                     Icons.Outlined.DeleteOutline,
                                     "本文をクリア",
                                     enabled = state.text.isNotEmpty() && !state.isPosting && !state.isSavingDraft && !state.isImportingMedia,
-                                ) { viewModel.onTextChanged("") }
+                                ) {
+                                    val clearedValue = textFieldValue
+                                    val clearedSessionId = state.selectedSession?.sessionId
+                                    viewModel.onTextChanged("")
+                                    clearUndoJob?.cancel()
+                                    snackbarHostState.currentSnackbarData?.dismiss()
+                                    clearUndoJob = scope.launch {
+                                        val result = snackbarHostState.showSnackbar(
+                                            message = "本文をクリアしました",
+                                            actionLabel = "元に戻す",
+                                            duration = SnackbarDuration.Short,
+                                        )
+                                        if (result == SnackbarResult.ActionPerformed) {
+                                            val current = viewModel.uiState.value
+                                            if (
+                                                current.text.isEmpty() &&
+                                                current.selectedSession?.sessionId == clearedSessionId &&
+                                                !current.isPosting && !current.isSavingDraft && !current.isImportingMedia
+                                            ) {
+                                                applyToolbarEdit(clearedValue)
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -523,11 +560,18 @@ fun ComposePostScreen(
                         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     )
                 }
+                val remainingCharacters = state.configuration.maxCharacters - state.text.length
+                val remainingColor = when {
+                    remainingCharacters <= 0 -> MaterialTheme.colorScheme.error
+                    remainingCharacters <= 20 -> MaterialTheme.colorScheme.onSurface
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                }
                 Text(
-                    text = "${state.configuration.maxCharacters - state.text.length}文字",
+                    text = "${remainingCharacters}文字",
                     modifier = Modifier.align(Alignment.End).padding(top = 4.dp),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                    fontWeight = if (remainingCharacters <= 20) FontWeight.SemiBold else FontWeight.Normal,
+                    color = remainingColor,
                 )
             }
 
@@ -953,8 +997,11 @@ private fun ComposeReferencePreview(
             Column(Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                 status?.let {
+                    val previewText = remember(it.contentHtml) {
+                        HtmlCompat.fromHtml(it.contentHtml, HtmlCompat.FROM_HTML_MODE_LEGACY).toString().trim()
+                    }
                     Text(
-                        HtmlCompat.fromHtml(it.contentHtml, HtmlCompat.FROM_HTML_MODE_LEGACY).toString().trim(),
+                        previewText,
                         maxLines = 3,
                         overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.bodyMedium,

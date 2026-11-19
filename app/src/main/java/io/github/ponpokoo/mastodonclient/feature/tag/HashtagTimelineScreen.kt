@@ -15,6 +15,7 @@ import io.github.ponpokoo.mastodonclient.domain.model.TimelineStatus
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -59,6 +60,8 @@ import io.github.ponpokoo.mastodonclient.feature.status.ListPickerDialog
 import io.github.ponpokoo.mastodonclient.feature.common.StatusActionsViewModel
 import io.github.ponpokoo.mastodonclient.feature.common.AppPullToRefreshBox
 import io.github.ponpokoo.mastodonclient.feature.common.ListLoadingContent
+import io.github.ponpokoo.mastodonclient.feature.common.ListLoadingMoreIndicator
+import io.github.ponpokoo.mastodonclient.feature.common.withoutBottomPadding
 import io.github.ponpokoo.mastodonclient.core.preferences.AppPreferences
 import kotlinx.coroutines.flow.distinctUntilChanged
 
@@ -139,10 +142,24 @@ fun HashtagTimelineScreen(
             else -> AppPullToRefreshBox(
                 isRefreshing = state.isLoading,
                 onRefresh = viewModel::refresh,
-                modifier = Modifier.fillMaxSize().padding(padding),
+                modifier = Modifier.fillMaxSize().padding(padding.withoutBottomPadding()),
             ) {
-                LazyColumn(Modifier.fillMaxSize(), state = listState) {
-                    items(state.statuses, key = { it.timelineId }) { status ->
+                val statusActions = StatusActions(
+                    onReply = { onReply(it.statusId) },
+                    onBoost = viewModel::toggleReblog,
+                    onQuote = onQuote,
+                    onFavourite = viewModel::toggleFavourite,
+                    onReact = viewModel::setReaction,
+                    onBookmark = actionsViewModel::toggleBookmark,
+                    onVotePoll = actionsViewModel::votePoll,
+                )
+                val displayPreferences = preferences.toStatusDisplayPreferences()
+                LazyColumn(
+                    Modifier.fillMaxSize(),
+                    state = listState,
+                    contentPadding = PaddingValues(bottom = padding.calculateBottomPadding() + 8.dp),
+                ) {
+                    items(state.statuses, key = { it.timelineId }, contentType = { "status" }) { status ->
                         androidx.compose.runtime.CompositionLocalProvider(
                             io.github.ponpokoo.mastodonclient.feature.status.LocalPollVoteState provides
                                 io.github.ponpokoo.mastodonclient.feature.status.PollVoteUiState(state.sessionKey, actionsState.votingPollIds),
@@ -153,34 +170,22 @@ fun HashtagTimelineScreen(
                                 onAuthorClick = onAccountClick,
                                 onMediaClick = onMediaClick,
                                 onOpenLink = onOpenLink,
-                                actions = StatusActions(
-                                    onReply = { onReply(it.statusId) },
-                                    onBoost = viewModel::toggleReblog,
-                                    onQuote = onQuote,
-                                    onFavourite = viewModel::toggleFavourite,
-                                    onReact = viewModel::setReaction,
-                                    onBookmark = actionsViewModel::toggleBookmark,
-                                    onVotePoll = actionsViewModel::votePoll,
-                                ),
+                                actions = statusActions,
                                 onUnavailableAction = {},
                                 onMoreClick = {
                                     if (it.author.id != currentAccountId) actionsViewModel.loadModerationMenu(it.author.id)
                                     menuStatus = it
                                 },
-                                preferences = preferences.toStatusDisplayPreferences(),
+                                preferences = displayPreferences,
                                 useTimelineImagePreviews = true,
                             )
                         }
                         HorizontalDivider()
                     }
                     if (state.isLoadingMore) {
-                        item {
-                            Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator(Modifier.size(28.dp))
-                            }
-                        }
+                        item(contentType = "loading_more") { ListLoadingMoreIndicator() }
                     } else if (!state.endReached && state.nextMaxId != null) {
-                        item {
+                        item(contentType = "load_more") {
                             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                                 TextButton(onClick = viewModel::loadMore) { Text("さらに読み込む") }
                             }

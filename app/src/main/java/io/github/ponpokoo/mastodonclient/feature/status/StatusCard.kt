@@ -13,6 +13,9 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -169,8 +172,9 @@ internal fun StatusCard(
         status.boostedBy?.takeIf { showBoostAttribution }?.let {
             Row(
                 modifier = Modifier
-                    .padding(start = contentStart, bottom = 6.dp)
+                    .padding(start = contentStart)
                     .then(if (onAuthorClick == null) Modifier else Modifier.clickable { onAuthorClick(it.id) })
+                    .padding(bottom = 6.dp)
                     .testTag("status_booster"),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -268,11 +272,12 @@ internal fun StatusCard(
             status.replyToAccountName()?.let { accountName ->
                 Text(
                     text = "返信先: @$accountName",
-                    modifier = Modifier.padding(top = 6.dp)
+                    modifier = Modifier
                         .then(
                             if (onAuthorClick == null || status.inReplyToAccountId == null) Modifier
                             else Modifier.clickable { onAuthorClick(status.inReplyToAccountId) },
                         )
+                        .padding(top = 6.dp)
                         .testTag("status_reply_target"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
@@ -372,7 +377,9 @@ internal fun StatusCard(
                             val maxImageWidth = (availableWidth - (22 + reaction.count.toString().length * 10).dp)
                                 .coerceAtLeast(48.dp)
                             Surface(
-                                modifier = Modifier.testTag("displayed_reaction").then(
+                                modifier = Modifier.testTag("displayed_reaction")
+                                    .semantics { selected = reaction.reactedByMe }
+                                    .then(
                                     if (!serverCapabilities.supportsReactionActions || onReact == null && onReactionLongPress == null && reactionListOpener == null) Modifier
                                     else Modifier.combinedClickable(
                                         onClick = {
@@ -422,9 +429,12 @@ internal fun StatusCard(
                                         Text(reaction.name)
                                     }
                                     Spacer(Modifier.width(4.dp))
-                                    Text(reaction.count.toString(), style = MaterialTheme.typography.labelMedium,
+                                    Text(
+                                        reaction.count.toString(),
+                                        style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
                                         fontWeight = if (reaction.reactedByMe) FontWeight.Bold
-                                            else MaterialTheme.typography.labelMedium.fontWeight)
+                                            else MaterialTheme.typography.labelMedium.fontWeight,
+                                    )
                                 }
                             }
                         }
@@ -519,6 +529,7 @@ private fun StatusActionRow(
                             enabled = canBoost,
                             crossedOut = !canBoost,
                             activeTint = if (status.reblogged) MaterialTheme.colorScheme.primary else null,
+                            stateDescription = if (status.reblogged) "ブースト済み" else null,
                         )
                         DropdownMenu(expanded = boostMenuExpanded && onQuote != null, onDismissRequest = { boostMenuExpanded = false }) {
                             DropdownMenuItem(text = { Text(if (status.reblogged) "ブースト解除" else "ブースト") }, enabled = onBoost != null, onClick = {
@@ -554,6 +565,7 @@ private fun StatusActionRow(
                     onFavourite,
                     onLongClick = onFavouriteLongClick,
                     activeTint = if (status.favourited) FavouriteIconColor else null,
+                    stateDescription = if (status.favourited) "お気に入り済み" else null,
                 )
                 StatusAction.Reaction -> if (onReaction != null && io.github.ponpokoo.mastodonclient.feature.common.LocalServerCapabilities.current.supportsReactionActions) {
                     StatusActionButton(Icons.Outlined.SentimentSatisfiedAlt, "リアクション", null, preferences, onReaction)
@@ -562,6 +574,7 @@ private fun StatusActionRow(
                 StatusAction.Bookmark -> StatusActionButton(
                     if (status.bookmarked) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
                     "ブックマーク", null, preferences, onBookmark,
+                    stateDescription = if (status.bookmarked) "ブックマーク済み" else null,
                 )
             }
         }
@@ -619,6 +632,7 @@ private fun StatusActionButton(
     enabled: Boolean = true,
     crossedOut: Boolean = false,
     activeTint: Color? = null,
+    stateDescription: String? = null,
 ) {
     val interactionEnabled = enabled && (onClick != null || onLongClick != null)
     val iconSize = when (preferences.actionIconSize) {
@@ -632,6 +646,7 @@ private fun StatusActionButton(
     @OptIn(ExperimentalFoundationApi::class)
     Row(
         modifier = Modifier.widthIn(min = 48.dp).heightIn(min = 48.dp)
+            .semantics { if (stateDescription != null) this.stateDescription = stateDescription }
             .combinedClickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -675,7 +690,7 @@ private fun StatusActionButton(
             Spacer(Modifier.width(2.dp))
             Text(
                 compactCount(displayedCount),
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
             )

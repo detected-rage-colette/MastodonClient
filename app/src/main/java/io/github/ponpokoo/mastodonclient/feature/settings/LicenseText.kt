@@ -1,5 +1,6 @@
 package io.github.ponpokoo.mastodonclient.feature.settings
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -24,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import io.github.ponpokoo.mastodonclient.domain.model.AppLicenseNotice
+import io.github.ponpokoo.mastodonclient.feature.common.withoutBottomPadding
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -42,7 +44,10 @@ internal fun LicenseTextScreen(viewModel: LicensesViewModel, onBack: () -> Unit)
             },
         )
     }) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding).testTag("license_document")) {
+        LazyColumn(
+            Modifier.fillMaxSize().padding(padding.withoutBottomPadding()).testTag("license_document"),
+            contentPadding = PaddingValues(bottom = padding.calculateBottomPadding() + 8.dp),
+        ) {
             if (state.loading) item { Text("読み込み中…", Modifier.padding(20.dp)) }
             if (state.failed) item {
                 Text("ライセンスを読み込めませんでした。", Modifier.padding(horizontal = 20.dp))

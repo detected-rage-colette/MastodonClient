@@ -11,6 +11,10 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.PersonOutline
@@ -34,6 +38,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
@@ -41,11 +46,15 @@ import dev.chrisbanes.haze.rememberHazeState
 import io.github.ponpokoo.mastodonclient.core.preferences.BottomTabBarStyle
 import io.github.ponpokoo.mastodonclient.ui.theme.glassSurface
 
-internal enum class MainDestination(val label: String, val icon: ImageVector) {
-    Home("ホーム", Icons.Outlined.Home),
-    Explore("探索", Icons.Outlined.Search),
-    Notifications("通知", Icons.Outlined.NotificationsNone),
-    Profile("プロフィール", Icons.Outlined.PersonOutline),
+internal enum class MainDestination(
+    val label: String,
+    val icon: ImageVector,
+    val selectedIcon: ImageVector,
+) {
+    Home("ホーム", Icons.Outlined.Home, Icons.Filled.Home),
+    Explore("探索", Icons.Outlined.Search, Icons.Filled.Search),
+    Notifications("通知", Icons.Outlined.NotificationsNone, Icons.Filled.Notifications),
+    Profile("プロフィール", Icons.Outlined.PersonOutline, Icons.Filled.Person),
 }
 
 @Composable
@@ -82,12 +91,21 @@ internal fun MainTabBar(
                     disabledTextColor = if (isSelected) colors.selectedTextColor else colors.unselectedTextColor,
                 ),
                 icon = {
+                    val iconVector = if (isSelected) item.selectedIcon else item.icon
                     if (item == MainDestination.Notifications && unreadNotifications > 0) {
-                        BadgedBox(badge = { Badge { Text(unreadNotifications.coerceAtMost(99).toString()) } }) {
-                            Icon(item.icon, contentDescription = null)
+                        val badgeText = if (unreadNotifications > 99) "99+" else unreadNotifications.toString()
+                        val badgeDescription = if (unreadNotifications > 99) "未読通知99件以上" else "未読通知${unreadNotifications}件"
+                        BadgedBox(
+                            badge = {
+                                Badge(modifier = Modifier.clearAndSetSemantics { contentDescription = badgeDescription }) {
+                                    Text(badgeText)
+                                }
+                            },
+                        ) {
+                            Icon(iconVector, contentDescription = null)
                         }
                     } else {
-                        Icon(item.icon, contentDescription = null)
+                        Icon(iconVector, contentDescription = null)
                     }
                 },
                 label = {

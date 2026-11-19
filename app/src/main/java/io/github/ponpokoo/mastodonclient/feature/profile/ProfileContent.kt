@@ -561,6 +561,16 @@ internal fun ProfileContent(
             val loadingMore = pageLoaded && (pageState?.isLoadingMore ?: (isSelectedPage && isLoadingMore))
             val slowLoadingLabel = if (state.selectedHashtag != null && pageState?.isSlowLoading == true)
                 "取得に時間がかかっています" else null
+            val statusActions = StatusActions(
+                onReply = onReply,
+                onBoost = onBoost,
+                onQuote = onQuote,
+                onFavourite = onFavourite,
+                onBookmark = onBookmark,
+                onReact = onReact,
+                onVotePoll = onVotePoll,
+            )
+            val displayPreferences = preferences.toStatusDisplayPreferences()
             Box(Modifier.fillMaxSize().testTag("profile_posts_${pageTab.name.lowercase()}")) {
             LazyColumn(
                 Modifier.fillMaxSize(), state = postListState,
@@ -570,49 +580,41 @@ internal fun ProfileContent(
                 userScrollEnabled = false,
             ) {
             if (initialLoading) {
-                item(key = "profile_posts_loading") {
+                item(key = "profile_posts_loading", contentType = "loading") {
                     ProfilePostsLoadingIndicator(slowLoadingLabel ?: "投稿を読み込み中…")
                 }
             }
-            items(statuses, key = { it.timelineId }) { status ->
+            items(statuses, key = { it.timelineId }, contentType = { "status" }) { status ->
                 SocialStatus(
                     status = status,
                     onStatusClick = onStatusClick,
                     onOpenLink = onOpenLink,
-                    actions = StatusActions(
-                        onReply = onReply,
-                        onBoost = onBoost,
-                        onQuote = onQuote,
-                        onFavourite = onFavourite,
-                        onBookmark = onBookmark,
-                        onReact = onReact,
-                        onVotePoll = onVotePoll,
-                    ),
+                    actions = statusActions,
                     onAccountClick = onAccountClick,
                     onMediaClick = onMediaClick,
-                    preferences = preferences.toStatusDisplayPreferences(),
+                    preferences = displayPreferences,
                     onMoreClick = onMoreClick,
                     isPinned = pageTab == ProfileStatusTab.Posts && status.statusId in pinnedStatusIds,
                 )
             }
                 if (statuses.isEmpty() && relationship?.let { it.muting || it.blocking } == true) {
-                    item { Text("ミュートまたはブロック中のため、投稿を表示していません", modifier = Modifier.padding(20.dp),
+                    item(contentType = "message") { Text("ミュートまたはブロック中のため、投稿を表示していません", modifier = Modifier.padding(20.dp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 } else if (statuses.isEmpty() && state.selectedHashtag != null && pageLoaded && pageState?.error == null) {
-                    item { Text("このタグの投稿はありません", modifier = Modifier.padding(20.dp),
+                    item(contentType = "message") { Text("このタグの投稿はありません", modifier = Modifier.padding(20.dp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }
                 if (loadingMore && !isPullRefreshing) {
-                    item { ListLoadingMoreIndicator(label = slowLoadingLabel) }
+                    item(contentType = "loading_more") { ListLoadingMoreIndicator(label = slowLoadingLabel) }
                 } else if (pageState?.error != null) {
-                    item {
+                    item(contentType = "error") {
                         Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(pageState.error, color = MaterialTheme.colorScheme.error)
                             if (isSelectedPage) TextButton(onClick = onRetryPosts) { Text("再試行") }
                         }
                     }
                 } else if (isSelectedPage && !initialLoading && !isPullRefreshing && !profile.endReached) {
-                    item { TextButton(onClick = onLoadMore, modifier = Modifier.fillMaxWidth()) { Text("さらに読み込む") } }
+                    item(contentType = "load_more") { TextButton(onClick = onLoadMore, modifier = Modifier.fillMaxWidth()) { Text("さらに読み込む") } }
                 }
             }
             }

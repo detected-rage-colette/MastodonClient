@@ -72,6 +72,14 @@ private val LightColorScheme = lightColorScheme(
     outlineVariant = Color(0xFFE0E1EB),
 )
 
+private val AppShapes = Shapes(
+    extraSmall = RoundedCornerShape(6.dp),
+    small = RoundedCornerShape(10.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(22.dp),
+    extraLarge = RoundedCornerShape(28.dp),
+)
+
 @Composable
 fun MastodonClientTheme(
     themeMode: ThemeMode = ThemeMode.System,
@@ -86,13 +94,7 @@ fun MastodonClientTheme(
     MaterialTheme(
         colorScheme = colorTheme.colorScheme(useDarkTheme),
         typography = Typography,
-        shapes = Shapes(
-            extraSmall = RoundedCornerShape(6.dp),
-            small = RoundedCornerShape(10.dp),
-            medium = RoundedCornerShape(16.dp),
-            large = RoundedCornerShape(22.dp),
-            extraLarge = RoundedCornerShape(28.dp),
-        ),
+        shapes = AppShapes,
         content = content,
     )
 }

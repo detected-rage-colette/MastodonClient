@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.Lifecycle
@@ -28,6 +29,7 @@ import io.github.ponpokoo.mastodonclient.feature.common.*
 import io.github.ponpokoo.mastodonclient.feature.media.mediaContentInsets
 import io.github.ponpokoo.mastodonclient.feature.status.*
 import io.github.ponpokoo.mastodonclient.feature.timeline.animateToTimelineTop
+import io.github.ponpokoo.mastodonclient.ui.theme.MainTopBarTitleStyle
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
@@ -92,7 +94,15 @@ fun SavedTimelinesScreen(
                 scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
             ),
             windowInsets = mediaContentInsets().only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
-            title = { Text(title, Modifier.clickable { scope.launch { listState.animateToTimelineTop() } }) },
+            title = {
+                Text(
+                    title,
+                    Modifier.clickable { scope.launch { listState.animateToTimelineTop() } },
+                    style = MainTopBarTitleStyle,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            },
             navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "戻る") } },
             actions = {
                 if (viewModel.canManageAccounts) Box {
@@ -115,17 +125,31 @@ fun SavedTimelinesScreen(
             AppPullToRefreshBox(
                 isRefreshing = state.refreshing,
                 onRefresh = viewModel::refresh,
-                modifier = Modifier.fillMaxSize().padding(padding),
+                modifier = Modifier.fillMaxSize().padding(padding.withoutBottomPadding()),
             ) {
-                LazyColumn(Modifier.fillMaxSize().testTag("saved_timelines_list"), state = listState) {
+                val statusActions = StatusActions(
+                    onReply = { onReply(it.statusId) },
+                    onBoost = actionsViewModel::toggleReblog,
+                    onFavourite = actionsViewModel::toggleFavourite,
+                    onBookmark = actionsViewModel::toggleBookmark,
+                    onReact = actionsViewModel::setReaction,
+                    onVotePoll = actionsViewModel::votePoll,
+                    onQuote = onQuote,
+                )
+                val displayPreferences = preferences.toStatusDisplayPreferences()
+                LazyColumn(
+                    Modifier.fillMaxSize().testTag("saved_timelines_list"),
+                    state = listState,
+                    contentPadding = PaddingValues(bottom = padding.calculateBottomPadding() + 8.dp),
+                ) {
                     if (showLists) {
-                        items(state.lists, key = MastodonList::id) { list ->
+                        items(state.lists, key = MastodonList::id, contentType = { "list" }) { list ->
                             Text(list.title, Modifier.fillMaxWidth().clickable { onListClick(list) }
                                 .heightIn(min = 48.dp).padding(20.dp), style = MaterialTheme.typography.titleMedium)
                             HorizontalDivider()
                         }
                     } else {
-                        items(state.statuses, key = TimelineStatus::timelineId) { status ->
+                        items(state.statuses, key = TimelineStatus::timelineId, contentType = { "status" }) { status ->
                             androidx.compose.runtime.CompositionLocalProvider(
                                 io.github.ponpokoo.mastodonclient.feature.status.LocalPollVoteState provides
                                     io.github.ponpokoo.mastodonclient.feature.status.PollVoteUiState(state.sessionKey, actionsState.votingPollIds),
@@ -136,37 +160,29 @@ fun SavedTimelinesScreen(
                                     onAccountClick = onAccountClick,
                                     onMediaClick = onMediaClick,
                                     onOpenLink = onOpenLink,
-                                    actions = StatusActions(
-                                        onReply = { onReply(it.statusId) },
-                                        onBoost = actionsViewModel::toggleReblog,
-                                        onFavourite = actionsViewModel::toggleFavourite,
-                                        onBookmark = actionsViewModel::toggleBookmark,
-                                        onReact = actionsViewModel::setReaction,
-                                        onVotePoll = actionsViewModel::votePoll,
-                                        onQuote = onQuote,
-                                    ),
+                                    actions = statusActions,
                                     onMoreClick = {
                                         if (it.author.id != currentAccountId) actionsViewModel.loadModerationMenu(it.author.id)
                                         menuStatus = it
                                     },
-                                    preferences = preferences.toStatusDisplayPreferences(),
+                                    preferences = displayPreferences,
                                 )
                             }
                         }
                     }
                     if (state.error != null) {
-                        item {
+                        item(contentType = "error") {
                             Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(state.error!!, color = MaterialTheme.colorScheme.error)
                                 TextButton(onClick = viewModel::retry) { Text("再試行") }
                             }
                         }
                     } else if (!state.loading && (if (showLists) state.lists.isEmpty() else state.statuses.isEmpty())) {
-                        item { MessageContent(if (showLists) "リストがありません" else "投稿がありません") }
+                        item(contentType = "empty") { MessageContent(if (showLists) "リストがありません" else "投稿がありません") }
                     }
-                    if (state.loadingMore) item { ListLoadingMoreIndicator() }
+                    if (state.loadingMore) item(contentType = "loading_more") { ListLoadingMoreIndicator() }
                     else if (!showLists && !state.loading && state.error == null && !state.endReached && state.nextMaxId != null) {
-                        item { TextButton(onClick = viewModel::loadMore, modifier = Modifier.fillMaxWidth()) { Text("さらに読み込む") } }
+                        item(contentType = "load_more") { TextButton(onClick = viewModel::loadMore, modifier = Modifier.fillMaxWidth()) { Text("さらに読み込む") } }
                     }
                 }
             }

@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -33,6 +34,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import io.github.ponpokoo.mastodonclient.feature.common.AppDropdownMenu
 import io.github.ponpokoo.mastodonclient.feature.common.AppDropdownMenuItem
 import io.github.ponpokoo.mastodonclient.feature.common.AppMenuDivider
+import io.github.ponpokoo.mastodonclient.feature.common.withoutBottomPadding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -157,7 +159,11 @@ internal fun SettingsPageContent(
                 else -> Unit
             }
         }
-        LazyColumn(state = listState, modifier = Modifier.padding(padding).testTag("settings_screen")) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.padding(padding.withoutBottomPadding()).testTag("settings_screen"),
+            contentPadding = PaddingValues(bottom = padding.calculateBottomPadding() + 8.dp),
+        ) {
             if (page == SettingsPage.Appearance) {
                 item { SectionTitle("外観") }
                 item {

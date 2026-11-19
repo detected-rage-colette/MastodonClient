@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.PlayCircle
@@ -153,6 +154,11 @@ private fun MediaGrid(
         ThumbnailSize.Standard -> null
     }
     val displayedAttachments = attachments.take(4)
+    val needsWifiCheck = displayedAttachments.any {
+        (it.type == "gifv" && gifAutoplay == AutoplayPolicy.WifiOnly) ||
+            (it.type == "video" && videoAutoplay == AutoplayPolicy.WifiOnly)
+    }
+    val onWifi = if (needsWifiCheck) isWifiConnected(context) else false
     val imageKeys = displayedAttachments.map { Triple(it.id, it.url, it.previewUrl) }
     var loadedAspectRatios by remember(imageKeys) { mutableStateOf<Map<String, Float>>(emptyMap()) }
     val rows = buildList {
@@ -272,8 +278,8 @@ private fun MediaGrid(
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     val autoplay = when (media.type) {
-                                        "gifv" -> shouldAutoplay(context, gifAutoplay)
-                                        "video" -> shouldAutoplay(context, videoAutoplay)
+                                        "gifv" -> shouldAutoplay(gifAutoplay, onWifi)
+                                        "video" -> shouldAutoplay(videoAutoplay, onWifi)
                                         else -> false
                                     }
                                     if (autoplay && media.url != null) {
@@ -317,12 +323,18 @@ private fun MediaGrid(
                                         )
                                     }
                                     if (!autoplay && !imageFailed && (media.type == "video" || media.type == "gifv")) {
-                                        Icon(
-                                            Icons.Outlined.PlayCircle,
-                                            contentDescription = "動画",
-                                            modifier = Modifier.size(48.dp),
-                                            tint = androidx.compose.ui.graphics.Color.White,
-                                        )
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Box(
+                                                modifier = Modifier.size(40.dp)
+                                                    .background(Color.Black.copy(alpha = 0.45f), CircleShape),
+                                            )
+                                            Icon(
+                                                Icons.Outlined.PlayCircle,
+                                                contentDescription = "動画",
+                                                modifier = Modifier.size(48.dp),
+                                                tint = Color.White,
+                                            )
+                                        }
                                     }
                                     if (remainingCount > 0) {
                                         Box(
@@ -455,12 +467,14 @@ internal fun StatusLinkPreview(
     }
 }
 
-private fun shouldAutoplay(context: Context, policy: AutoplayPolicy): Boolean = when (policy) {
+private fun shouldAutoplay(policy: AutoplayPolicy, onWifi: Boolean): Boolean = when (policy) {
     AutoplayPolicy.Always -> true
     AutoplayPolicy.Never -> false
-    AutoplayPolicy.WifiOnly -> {
-        val manager = context.getSystemService(ConnectivityManager::class.java)
-        val capabilities = manager.getNetworkCapabilities(manager.activeNetwork)
-        capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
-    }
+    AutoplayPolicy.WifiOnly -> onWifi
+}
+
+private fun isWifiConnected(context: Context): Boolean {
+    val manager = context.getSystemService(ConnectivityManager::class.java)
+    val capabilities = manager.getNetworkCapabilities(manager.activeNetwork)
+    return capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
 }

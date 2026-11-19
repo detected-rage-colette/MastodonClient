@@ -46,9 +46,12 @@ internal fun MediaPlaybackControls(playback: MediaPlayback, label: String, compa
             IconButton(enabled = playback.url != null && playback.controlsEnabled, onClick = playback::togglePlayback) {
                 MediaPlaybackIcon(playing = playback.requested, label = label)
             }
-            Text("${mediaTime(displayedPosition)} / ${mediaTime(duration)}",
-                style = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium,
-                modifier = (if (compact) Modifier else Modifier.weight(1f)).padding(horizontal = 4.dp))
+            Text(
+                "${mediaTime(displayedPosition)} / ${mediaTime(duration)}",
+                style = (if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium)
+                    .copy(fontFeatureSettings = "tnum"),
+                modifier = (if (compact) Modifier else Modifier.weight(1f)).padding(horizontal = 4.dp),
+            )
             if (compact) {
                 MediaSlider(value = seekValue, onValueChange = onSeekChange, onValueChangeFinished = onSeekFinished,
                     enabled = canSeek, modifier = Modifier.weight(1f).then(seekModifier))

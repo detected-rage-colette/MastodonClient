@@ -108,6 +108,7 @@ import io.github.ponpokoo.mastodonclient.feature.common.CustomEmojiText
 import io.github.ponpokoo.mastodonclient.feature.common.AppTopBarHeight
 import io.github.ponpokoo.mastodonclient.feature.common.AppTopBarShadowElevation
 import io.github.ponpokoo.mastodonclient.feature.common.ListLoadingContent
+import io.github.ponpokoo.mastodonclient.feature.common.withoutBottomPadding
 import io.github.ponpokoo.mastodonclient.core.preferences.AppPreferences
 import io.github.ponpokoo.mastodonclient.ui.theme.MainTopBarTitleStyle
 import java.time.Instant
@@ -146,6 +147,7 @@ fun StatusDetailScreen(
         onReact = viewModel::setReaction,
         onVotePoll = viewModel::votePoll,
     )
+    val displayPreferences = preferences.toStatusDisplayPreferences()
     val conversationListState = androidx.compose.runtime.key(state.sessionKey) { rememberConversationListState(
         status?.statusId,
         state.detail?.ancestors?.size ?: 0,
@@ -234,10 +236,12 @@ fun StatusDetailScreen(
                     Text(state.errorMessage ?: "投稿を表示できませんでした")
                     TextButton(onClick = viewModel::retry) { Text("再試行") }
                 }
-                else -> Box(Modifier.fillMaxSize().padding(padding)) {
+                else -> Box(Modifier.fillMaxSize().padding(padding.withoutBottomPadding())) {
                     LazyColumn(
                         state = conversationListState.listState,
-                        contentPadding = PaddingValues(bottom = conversationListState.bottomPadding),
+                        contentPadding = PaddingValues(
+                            bottom = conversationListState.bottomPadding + padding.calculateBottomPadding() + 8.dp,
+                        ),
                         userScrollEnabled = conversationListState.isPositioned,
                         // Measure the initial rows before exposing the selected post.
                         modifier = Modifier.fillMaxSize().graphicsLayer {
@@ -247,8 +251,8 @@ fun StatusDetailScreen(
                     ) {
                         state.detail?.ancestors?.let { ancestors ->
                             if (ancestors.isNotEmpty()) {
-                                item(key = "ancestors-heading") { Text("この会話の前の投稿", Modifier.padding(16.dp), style = MaterialTheme.typography.titleMedium) }
-                                items(ancestors, key = { "ancestor-${it.statusId}" }) { ancestor ->
+                                item(key = "ancestors-heading", contentType = "heading") { Text("この会話の前の投稿", Modifier.padding(16.dp), style = MaterialTheme.typography.titleMedium) }
+                                items(ancestors, key = { "ancestor-${it.statusId}" }, contentType = { "status" }) { ancestor ->
                                     StatusCard(
                                         status = ancestor,
                                         collapseLongContent = false,
@@ -260,13 +264,13 @@ fun StatusDetailScreen(
                                         actions = actions,
                                         onReactionLongPress = { onShowReaction(ancestor.statusId, it) },
                                         onUnavailableAction = {},
-                                        preferences = preferences.toStatusDisplayPreferences(),
+                                        preferences = displayPreferences,
                                     )
                                     HorizontalDivider()
                                 }
                             }
                         }
-                        item(key = "selected-${status.statusId}") {
+                        item(key = "selected-${status.statusId}", contentType = "selected_status") {
                             StatusCard(
                                 status = status,
                                 collapseLongContent = false,
@@ -283,7 +287,7 @@ fun StatusDetailScreen(
                                 },
                                 onReactionLongPress = { onShowReaction(status.statusId, it) },
                                 onUnavailableAction = {},
-                                preferences = preferences.toStatusDisplayPreferences(),
+                                preferences = displayPreferences,
                                 fullWidthContent = true,
                                 afterActions = {
                                     StatusDetailMetadata(
@@ -298,8 +302,8 @@ fun StatusDetailScreen(
                         }
                         state.detail?.descendants?.let { replies ->
                             if (replies.isNotEmpty()) {
-                                item(key = "replies-heading") { Text("返信", Modifier.padding(horizontal = 12.dp, vertical = 10.dp), style = MaterialTheme.typography.titleMedium) }
-                                items(replies, key = { "reply-${it.statusId}" }) { reply ->
+                                item(key = "replies-heading", contentType = "heading") { Text("返信", Modifier.padding(horizontal = 12.dp, vertical = 10.dp), style = MaterialTheme.typography.titleMedium) }
+                                items(replies, key = { "reply-${it.statusId}" }, contentType = { "status" }) { reply ->
                                     StatusCard(
                                         reply,
                                         collapseLongContent = false,
@@ -311,7 +315,7 @@ fun StatusDetailScreen(
                                         actions = actions,
                                         onReactionLongPress = { onShowReaction(reply.statusId, it) },
                                         onUnavailableAction = {},
-                                        preferences = preferences.toStatusDisplayPreferences(),
+                                        preferences = displayPreferences,
                                     )
                                     HorizontalDivider()
                                 }

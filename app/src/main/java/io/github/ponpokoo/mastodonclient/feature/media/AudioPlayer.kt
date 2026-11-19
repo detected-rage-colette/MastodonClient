@@ -118,7 +118,10 @@ internal fun AudioPlayerContent(attachment: MediaAttachment, playback: MediaPlay
                         verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             val displayedPosition = seekFraction?.let { (it * playback.duration).toLong() } ?: playback.position
-                            Text("${mediaTime(displayedPosition)} / ${mediaTime(playback.duration)}", style = MaterialTheme.typography.labelMedium)
+                            Text(
+                                "${mediaTime(displayedPosition)} / ${mediaTime(playback.duration)}",
+                                style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                            )
                             if (playback.failed || playback.url == null) {
                                 Text(mediaPlaybackStatus(playback, "音声"), style = MaterialTheme.typography.labelSmall)
                             }
