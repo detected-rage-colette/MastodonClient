@@ -325,7 +325,7 @@ class MainTabsEdgeToEdgeDeviceTest(private val dark: Boolean) {
             repeat(2) { rule.onNodeWithContentDescription("戻る").performClick() }
 
             assertEquals(floatingBounds, nav().fetchSemanticsNode().boundsInRoot)
-            rule.onNode(hasTestTag("main_tab_notifications") and hasText("2")).assertIsDisplayed()
+            rule.onNode(hasTestTag("main_tab_notifications") and hasContentDescription("未読通知2件")).assertIsDisplayed()
             list().performScrollToIndex(10)
             val before = nav().captureToImage().toPixelMap()
             list().performSemanticsAction(SemanticsActions.ScrollBy) { assertTrue(it(0f, 48f)) }
@@ -447,7 +447,7 @@ class MainTabsEdgeToEdgeDeviceTest(private val dark: Boolean) {
             assertTrue(floatingBar.left > viewport.left + edgeOffset)
             assertTrue(floatingBar.right < viewport.right - edgeOffset)
             assertEquals(expectedFloatingWidth(viewport.width), floatingBar.width, 1f)
-            val notificationBadge = rule.onNode(hasTestTag("main_tab_notifications") and hasText("2"))
+            val notificationBadge = rule.onNode(hasTestTag("main_tab_notifications") and hasContentDescription("未読通知2件"))
             notificationBadge.assertIsDisplayed()
             list().performScrollToIndex(10)
             val edgePoints = listOf(

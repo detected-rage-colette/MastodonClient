@@ -14,9 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.produceState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
@@ -44,13 +42,12 @@ class MainActivity : ComponentActivity() {
         acceptIncomingIntent(intent)
         setContent {
             val preferencesStore = remember { UserPreferencesStore(applicationContext) }
-            val preferences by preferencesStore.preferences.collectAsStateWithLifecycle(
-                initialValue = AppPreferences(),
+            val loadedPreferences by preferencesStore.preferences.collectAsStateWithLifecycle(
+                initialValue = null,
             )
-            val notificationEnabled by produceState<Pair<Boolean, Boolean>?>(null, preferencesStore) {
-                preferencesStore.preferences.collect { current ->
-                    value = current.simpleNotificationsEnabled to current.foregroundNotificationsEnabled
-                }
+            val preferences = loadedPreferences ?: AppPreferences()
+            val notificationEnabled = loadedPreferences?.let {
+                it.simpleNotificationsEnabled to it.foregroundNotificationsEnabled
             }
             val notificationPermission = rememberLauncherForActivityResult(
                 ActivityResultContracts.RequestPermission(),
@@ -87,7 +84,7 @@ class MainActivity : ComponentActivity() {
             var mediaVisible by remember { mutableStateOf(false) }
             MastodonClientTheme(themeMode = preferences.themeMode) {
                 val windowBackground = MaterialTheme.colorScheme.background
-                SideEffect {
+                LaunchedEffect(windowBackground, darkTheme, mediaVisible) {
                     window.setBackgroundDrawable(windowBackground.toArgb().toDrawable())
                     WindowCompat.getInsetsController(window, window.decorView).apply {
                         isAppearanceLightStatusBars = !darkTheme && !mediaVisible

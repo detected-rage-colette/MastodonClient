@@ -6,6 +6,8 @@ import io.github.ponpokoo.mastodonclient.core.security.MemoryAuthPreferences
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Test
@@ -54,5 +56,36 @@ class EmojiFavoritesPreferencesTest {
         failWrites = true
         assertTrue(runCatching { store.setEmojiFavorite("a", "custom", true) }.isFailure)
         assertEquals(listOf("😊"), UserPreferencesStore(memory).emojiFavorites.first()["a"])
+    }
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @Test fun unrelatedPreferenceWritesDoNotReemitEmojiHistoryOrFavorites() = runTest {
+        val store = UserPreferencesStore(MemoryAuthPreferences())
+        store.setEmojiFavorite("a", "😊", true)
+        store.recordReaction("a", "🔥")
+        store.recordComposerEmoji("a", "🎉")
+
+        val favoritesEmissions = mutableListOf<Map<String, List<String>>>()
+        val reactionEmissions = mutableListOf<Map<String, List<String>>>()
+        val composerEmissions = mutableListOf<Map<String, List<String>>>()
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val jobs = listOf(
+            backgroundScope.launch(dispatcher) { store.emojiFavorites.collect(favoritesEmissions::add) },
+            backgroundScope.launch(dispatcher) { store.reactionHistory.collect(reactionEmissions::add) },
+            backgroundScope.launch(dispatcher) { store.composerEmojiHistory.collect(composerEmissions::add) },
+        )
+
+        store.setOpenLinksInApp(false)
+        store.setThemeMode(ThemeMode.Dark)
+
+        assertEquals(1, favoritesEmissions.size)
+        assertEquals(1, reactionEmissions.size)
+        assertEquals(1, composerEmissions.size)
+
+        store.setEmojiFavorite("a", "✨", true)
+        assertEquals(2, favoritesEmissions.size)
+        assertEquals(1, reactionEmissions.size)
+        assertEquals(1, composerEmissions.size)
+        jobs.forEach { it.cancel() }
     }
 }

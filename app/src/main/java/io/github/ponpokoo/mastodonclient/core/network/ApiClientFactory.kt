@@ -41,14 +41,19 @@ class ApiClientFactory(
     fun createForProfileTags(baseUrl: String, accessToken: String): MastodonApi =
         profileTagsFactory.create(baseUrl, accessToken)
 
-    fun createForMedia(baseUrl: String, accessToken: String): MastodonApi = ApiClientFactory(
-        client.newBuilder()
-            .connectTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
-            .writeTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
-            .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
-            .callTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
-            .build(), json,
-    ).create(baseUrl, accessToken)
+    private val mediaFactory by lazy {
+        ApiClientFactory(
+            client.newBuilder()
+                .connectTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+                .writeTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+                .callTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+                .build(), json,
+        )
+    }
+
+    fun createForMedia(baseUrl: String, accessToken: String): MastodonApi =
+        mediaFactory.create(baseUrl, accessToken)
 
     // Bounded, in-memory only; credentials are part of the key to isolate sessions.
     private data class ClientKey(val baseUrl: String, val accessToken: String?)

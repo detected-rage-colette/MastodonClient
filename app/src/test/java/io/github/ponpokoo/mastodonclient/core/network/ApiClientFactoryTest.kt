@@ -40,6 +40,15 @@ class ApiClientFactoryTest {
     }
 
     @Test
+    fun mediaClientsAreReusedPerSessionAndIsolatedAcrossAccounts() {
+        val factory = ApiClientFactory()
+        val url = "https://example.social/"
+        val first = factory.createForMedia(url, "account-a")
+        org.junit.Assert.assertSame(first, factory.createForMedia(url.removeSuffix("/"), "account-a"))
+        org.junit.Assert.assertNotSame(first, factory.createForMedia(url, "account-b"))
+    }
+
+    @Test
     fun instanceResponseIgnoresUnknownFields() = runTest {
         MockWebServer().use { server ->
             server.enqueue(

@@ -189,23 +189,22 @@ class UserPreferencesStore(
         it.copy(notificationCapabilities = it.notificationCapabilities + (instanceUrl.trimEnd('/') to value))
     }
 
-    val reactionHistory: Flow<Map<String, List<String>>> = dataStore.data.map { stored ->
-        stored[REACTION_HISTORY]?.let { encoded ->
-            runCatching { json.decodeFromString<Map<String, List<String>>>(encoded) }.getOrNull()
-        }.orEmpty()
-    }
+    private fun observeStringListMap(
+        key: androidx.datastore.preferences.core.Preferences.Key<String>,
+    ): Flow<Map<String, List<String>>> = dataStore.data
+        .map { stored -> stored[key] }
+        .distinctUntilChanged()
+        .map { encoded ->
+            encoded?.let {
+                runCatching { json.decodeFromString<Map<String, List<String>>>(it) }.getOrNull()
+            }.orEmpty()
+        }
 
-    val composerEmojiHistory: Flow<Map<String, List<String>>> = dataStore.data.map { stored ->
-        stored[COMPOSER_EMOJI_HISTORY]?.let { encoded ->
-            runCatching { json.decodeFromString<Map<String, List<String>>>(encoded) }.getOrNull()
-        }.orEmpty()
-    }
+    val reactionHistory: Flow<Map<String, List<String>>> = observeStringListMap(REACTION_HISTORY)
 
-    val emojiFavorites: Flow<Map<String, List<String>>> = dataStore.data.map { stored ->
-        stored[EMOJI_FAVORITES]?.let { encoded ->
-            runCatching { json.decodeFromString<Map<String, List<String>>>(encoded) }.getOrNull()
-        }.orEmpty()
-    }
+    val composerEmojiHistory: Flow<Map<String, List<String>>> = observeStringListMap(COMPOSER_EMOJI_HISTORY)
+
+    val emojiFavorites: Flow<Map<String, List<String>>> = observeStringListMap(EMOJI_FAVORITES)
 
     /** Both pickers share account-local favorites; each change merges with the latest stored list. */
     suspend fun setEmojiFavorite(sessionId: String, emoji: String, favorite: Boolean): List<String> {

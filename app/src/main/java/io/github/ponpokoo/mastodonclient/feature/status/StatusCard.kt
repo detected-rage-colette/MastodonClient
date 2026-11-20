@@ -150,8 +150,11 @@ internal fun StatusCard(
     var reactionPickerOpen by rememberSaveable(status.filterScope, status.statusId) { mutableStateOf(false) }
     val reactionListOpener = LocalReactionListOpener.current
     val serverCapabilities = io.github.ponpokoo.mastodonclient.feature.common.LocalServerCapabilities.current
-    androidx.compose.runtime.LaunchedEffect(serverCapabilities.supportsReactionActions, onReact != null) {
-        if (!serverCapabilities.supportsReactionActions || onReact == null) reactionPickerOpen = false
+    val canOpenReactionPicker = serverCapabilities.supportsReactionActions && onReact != null
+    if (reactionPickerOpen && !canOpenReactionPicker) {
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            reactionPickerOpen = false
+        }
     }
     val favouriteListOpener = LocalFavouriteListOpener.current
     val context = LocalContext.current
@@ -478,14 +481,14 @@ internal fun StatusCard(
         }
     }
 
-    if (reactionPickerOpen && serverCapabilities.supportsReactionActions) {
+    if (reactionPickerOpen && canOpenReactionPicker) {
         ReactionPickerSheet(
             canUndo = status.reactions.any { it.reactedByMe },
             motion = reactionPickerMotion,
             onDismiss = { reactionPickerOpen = false },
             onSelected = { emoji ->
                 reactionPickerOpen = false
-                onReact?.invoke(emoji)
+                onReact(emoji)
             },
         )
     }
