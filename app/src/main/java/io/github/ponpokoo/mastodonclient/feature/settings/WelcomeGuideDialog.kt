@@ -46,12 +46,10 @@ internal const val USAGE_GUIDE_URL = "https://ponpokoo.github.io/nagisa-policy/g
 internal data class AppUpdateNotice(val versionCode: Int, val highlights: List<String>)
 
 internal val appUpdateNotice = AppUpdateNotice(
-    versionCode = 38,
+    versionCode = 39,
     highlights = listOf(
-        "投稿画面で本文を削除したあと、「元に戻す」が表示されるようになりました。文字数の上限が近づくと、残り文字数を強調します。",
-        "未読通知が100件以上になると「99+」と表示します。",
-        "各画面のデザインを調整しました。",
-        "ホームと通知の表示処理を効率化しました。",
+        "フローティングおよびLiquid Glassの下部タブバーを、よりスリムなカプセル型に改善しました。タブを切り替えると選択中のハイライトが滑らかにスライドします。",
+        "メディア読み込みや設定の反映、投稿表示などの内部処理を効率化しました。",
     ),
 )
 
