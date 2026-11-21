@@ -45,7 +45,7 @@
 | [ライセンスと第三者通知](third-party-licenses.md) | アプリ内のライセンス表示、Apache 2.0適用範囲、Release依存の収録内容と再生成・公開前確認を参照する |
 | [保守・機能追加・リリース計画](release-plan.md) | 保守・機能追加の優先順位、配布候補と確認範囲、Play更新と内部ノートの記録手順を確認する |
 | [内部リリースノートの保管](release-plan.md#内部リリースノートの保管) | Git管理外のノートへ成果物・確認結果・公開状況をまとめ、バックアップする方法を確認する |
-| [push後の提出・配布結果の反映](release-plan.md#提出配布後の結果反映) | 準備完了後の引き継ぎ、提出・配信・Play動作確認の連絡を同じ内部ノートへ反映する方法を確認する |
+| [push後のCI・提出・配信確認の扱い](release-plan.md#提出配布後の結果反映) | CIとPlayの確認は利用者側で行い、問題や特記事項が出たときだけ対処・記録する運用を確認する |
 | [製品版の保守・更新ワークフロー](google-play-publication-workflow.md) | 製品版の通常更新、変更に応じた確認、不具合対応とPush・Relayの運用を確認する |
 | [GitHub Issues](https://github.com/ponpokoo/MastodonClient/issues) | 移行済みの継続確認・改善候補と対応の進捗を確認する |
 
