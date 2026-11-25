@@ -265,6 +265,17 @@ fun AppNavigation(
             StatusInteractionsViewModel(timelineRepository, requireNotNull(mainSessionModel).browsing, preferences)
         })
     }
+    val replyParentResolver = timelineEntry?.let { entry ->
+        viewModel<io.github.ponpokoo.mastodonclient.feature.common.ReplyParentViewModel>(
+            viewModelStoreOwner = entry,
+            factory = ScreenViewModelFactory {
+                io.github.ponpokoo.mastodonclient.feature.common.ReplyParentViewModel(
+                    timelineRepository,
+                    requireNotNull(mainSessionModel).browsing,
+                )
+            },
+        )
+    }
     val accountsState = interactions?.accounts?.collectAsStateWithLifecycle()?.value ?: StatusAccountsUiState()
     val capabilitiesModel = timelineEntry?.let { entry ->
         viewModel<io.github.ponpokoo.mastodonclient.feature.common.ServerCapabilitiesViewModel>(
@@ -352,6 +363,7 @@ fun AppNavigation(
         LocalFavouriteListOpener provides { statusId -> interactions?.openFavourites(statusId); Unit },
         LocalReactionListOpener provides { statusId, reaction -> interactions?.openReaction(statusId, reaction); Unit },
         LocalReactionEmojiPickerConnection provides interactions?.emojiPickerConnection(),
+        io.github.ponpokoo.mastodonclient.feature.common.LocalReplyParentResolver provides replyParentResolver,
     ) {
     val initialRoute = startupRoute
     if (initialRoute == null) {

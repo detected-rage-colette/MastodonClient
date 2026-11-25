@@ -1272,6 +1272,41 @@ class DefaultTimelineRepositoryTest {
         }
     }
 
+    @Test fun mapsQuoteStatusesWithoutInfiniteNestingAndHandlesNonAcceptedStates() = runTest {
+        MockWebServer().use { server ->
+            val innerNested = """{"id":"inner","created_at":"2026-09-07T00:00:00Z","account":{"id":"c","username":"carol","acct":"carol"},"content":"<p>inner</p>"}"""
+            val quotedAccepted = """{
+                "id":"q1","created_at":"2026-09-08T00:00:00Z",
+                "account":{"id":"b","username":"bob","acct":"bob","display_name":"Bob"},
+                "content":"<p>quoted body</p>",
+                "quote":{"state":"accepted","quoted_status":$innerNested}
+            }"""
+            val quotedHidden = """{
+                "id":"q2","created_at":"2026-09-08T00:00:00Z",
+                "account":{"id":"d","username":"dave","acct":"dave"},
+                "content":"<p>secret</p>"
+            }"""
+            val json = """[
+                ${basicStatusJson("p1").dropLast(1)},"quote":{"state":"accepted","quoted_status":$quotedAccepted}},
+                ${basicStatusJson("p2").dropLast(1)},"quote":{"state":"pending"}},
+                ${basicStatusJson("p3").dropLast(1)},"quote":{"state":"muted_account","quoted_status":$quotedHidden}}
+            ]"""
+            server.enqueue(MockResponse().setBody(json))
+            val statuses = DefaultTimelineRepository(ApiClientFactory())
+                .getHomeTimeline(testSession(server)).getOrThrow().statuses
+            assertEquals(3, statuses.size)
+            val firstQuote = statuses[0].quote!!
+            assertEquals("accepted", firstQuote.state)
+            assertEquals("q1", firstQuote.status!!.statusId)
+            assertEquals("Bob", firstQuote.status!!.author.displayName)
+            assertNull(firstQuote.status!!.quote)
+            assertEquals("pending", statuses[1].quote!!.state)
+            assertNull(statuses[1].quote!!.status)
+            assertEquals("muted_account", statuses[2].quote!!.state)
+            assertNull(statuses[2].quote!!.status)
+        }
+    }
+
     private fun testSession(server: MockWebServer) = AccountSession(
         sessionId = "session",
         instanceUrl = server.url("/").toString().removeSuffix("/"),

@@ -82,13 +82,53 @@ internal class TimelineModerationCache(
                     }
                     val presentation = status.filterPresentation(context, now, currentFilters)
                     val scope = session.sessionId + session.instanceUrl
-                    if (status.filterDisplay == presentation && status.filterScope == scope) status
+                    val withFilter = if (status.filterDisplay == presentation && status.filterScope == scope) status
                     else status.copy(filterDisplay = presentation, filterScope = scope)
+                    withFilter.withModeratedQuote(moderation, session, context, now, currentWords, currentFilters) { date ->
+                        if (date != null && date > now && (expiry == null || date < expiry)) expiry = date
+                    }
                 }
                 if (!moderation.applyServerFilters || !presented.filterDisplay.hidden) add(presented)
             }
         }
         return Rows(source, moderation, context, now, expiry, visible, visible.mapTo(mutableSetOf()) { it.timelineId })
+    }
+
+    private fun TimelineStatus.withModeratedQuote(
+        moderation: AccountModerationState,
+        session: AccountSession,
+        context: String,
+        now: Instant,
+        currentWords: List<String>,
+        currentFilters: List<io.github.ponpokoo.mastodonclient.domain.model.ServerFilter>?,
+        onExpiry: (Instant?) -> Unit,
+    ): TimelineStatus {
+        val currentQuote = quote ?: return this
+        val quotedStatus = currentQuote.status ?: return this
+        if (moderation.hides(session, quotedStatus)) {
+            return copy(quote = currentQuote.copy(state = "muted_account", status = null))
+        }
+        if (matchesWord(quotedStatus, currentWords)) {
+            return copy(quote = currentQuote.copy(state = "filtered", status = null))
+        }
+        for (result in quotedStatus.filtered.orEmpty()) {
+            val rule = if (currentFilters == null) result.filter else currentFilters.firstOrNull { it.id == result.filter.id }
+            val date = rule?.takeIf { context in it.context }?.expiresAt?.let {
+                runCatching { Instant.parse(it) }.getOrNull()
+            }
+            onExpiry(date)
+        }
+        val presentation = quotedStatus.filterPresentation(context, now, currentFilters)
+        if (presentation.hidden) {
+            return copy(quote = currentQuote.copy(state = "filtered", status = null))
+        }
+        val scope = session.sessionId + session.instanceUrl
+        val presentedQuote = if (quotedStatus.filterDisplay == presentation && quotedStatus.filterScope == scope) {
+            quotedStatus
+        } else {
+            quotedStatus.copy(filterDisplay = presentation, filterScope = scope)
+        }
+        return if (presentedQuote == quotedStatus) this else copy(quote = currentQuote.copy(status = presentedQuote))
     }
 
     private fun matchesWord(status: TimelineStatus, currentWords: List<String>): Boolean {

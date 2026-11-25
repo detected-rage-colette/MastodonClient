@@ -29,6 +29,7 @@ data class StatusDto(
     val emojis: List<AccountEmojiDto> = emptyList(),
     val mentions: List<StatusMentionDto> = emptyList(),
     @SerialName("quote_approval") val quoteApproval: QuoteApprovalDto? = null,
+    val quote: StatusQuoteDto? = null,
     val card: PreviewCardDto? = null,
     val poll: PollDto? = null,
     @SerialName("media_attachments") val mediaAttachments: List<MediaAttachmentDto> = emptyList(),
@@ -72,6 +73,13 @@ data class StatusMentionDto(
 @Serializable
 data class QuoteApprovalDto(
     @SerialName("current_user") val currentUser: String? = null,
+)
+
+@Serializable
+data class StatusQuoteDto(
+    val state: String? = null,
+    @SerialName("quoted_status") val quotedStatus: StatusDto? = null,
+    @SerialName("quoted_status_id") val quotedStatusId: String? = null,
 )
 
 @Serializable

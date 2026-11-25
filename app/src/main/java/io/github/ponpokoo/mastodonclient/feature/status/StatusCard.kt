@@ -56,6 +56,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -63,6 +64,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.flowOf
+import io.github.ponpokoo.mastodonclient.feature.common.LocalReplyParentResolver
+import io.github.ponpokoo.mastodonclient.feature.common.ReplyParentState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -130,6 +136,7 @@ internal fun StatusCard(
     reactionPickerMotion: EmojiPickerSheetMotion = EmojiPickerSheetMotion.HeaderOnly,
     showBoostAttribution: Boolean = true,
     enableBodySelection: Boolean = false,
+    showReplyContext: Boolean = true,
 ) {
     val onReply = actions.onReply?.let { handler -> { handler(status) } }
     val onBoost = actions.onBoost?.let { handler -> { handler(status) } }
@@ -279,21 +286,59 @@ internal fun StatusCard(
                 ),
             )
             if (!filterContentVisible) return@Column
-            status.replyToAccountName()?.let { accountName ->
-                Text(
-                    text = "返信先: @$accountName",
-                    modifier = Modifier
-                        .then(
-                            if (onAuthorClick == null || status.inReplyToAccountId == null) Modifier
-                            else Modifier.clickable { onAuthorClick(status.inReplyToAccountId) },
-                        )
-                        .padding(top = 6.dp)
-                        .testTag("status_reply_target"),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+            val replyResolver = if (showReplyContext) LocalReplyParentResolver.current else null
+            val replyToId = status.inReplyToId
+            val replyParentState by remember(replyResolver, replyToId, showReplyContext) {
+                if (showReplyContext && replyResolver != null && replyToId != null) {
+                    replyResolver.observe(replyToId)
+                } else {
+                    flowOf(ReplyParentState.Unavailable)
+                }
+            }.collectAsStateWithLifecycle(
+                initialValue = if (showReplyContext && replyResolver != null && replyToId != null) {
+                    replyResolver.peek(replyToId)
+                } else {
+                    ReplyParentState.Unavailable
+                },
+            )
+            LaunchedEffect(replyResolver, replyToId, showReplyContext) {
+                if (showReplyContext && replyResolver != null && replyToId != null &&
+                    replyResolver.peek(replyToId) == ReplyParentState.Loading
+                ) {
+                    delay(80L)
+                    replyResolver.ensureLoaded(replyToId)
+                }
+            }
+            val resolvedParent = (replyParentState as? ReplyParentState.Available)?.status
+            if (showReplyContext && resolvedParent != null) {
+                Spacer(Modifier.height(6.dp))
+                StatusReferenceCard(
+                    status = resolvedParent,
+                    referenceKey = "reply:${status.timelineId}",
+                    displayPreferences = displayPreferences,
+                    collapseLongContent = collapseLongContent,
+                    onStatusClick = onStatusClick,
+                    onAuthorClick = onAuthorClick,
+                    onOpenLink = onOpenLink,
+                    modifier = Modifier.padding(bottom = 4.dp).testTag("status_reply_reference"),
                 )
+            } else {
+                status.replyToAccountName()?.let { accountName ->
+                    Text(
+                        text = "返信先: @$accountName",
+                        modifier = Modifier
+                            .then(
+                                if (onAuthorClick == null || status.inReplyToAccountId == null) Modifier
+                                else Modifier.clickable { onAuthorClick(status.inReplyToAccountId) },
+                            )
+                            .padding(top = 6.dp)
+                            .testTag("status_reply_target"),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
             if (status.spoilerText.isNotBlank()) {
                 ContentWarning(
@@ -368,6 +413,24 @@ internal fun StatusCard(
                         thumbnailSize = displayPreferences.thumbnailSize,
                         onClick = { onOpenLink(card.url) },
                     )
+                }
+                status.quote?.let { quote ->
+                    Spacer(Modifier.height(8.dp))
+                    val quotedStatus = quote.status
+                    if (quote.state == "accepted" && quotedStatus != null) {
+                        StatusReferenceCard(
+                            status = quotedStatus,
+                            referenceKey = "quote:${status.timelineId}",
+                            displayPreferences = displayPreferences,
+                            collapseLongContent = collapseLongContent,
+                            onStatusClick = onStatusClick,
+                            onAuthorClick = onAuthorClick,
+                            onOpenLink = onOpenLink,
+                            modifier = Modifier.testTag("status_quote_reference"),
+                        )
+                    } else {
+                        StatusQuotePlaceholder(quote.state)
+                    }
                 }
             }
             if (displayPreferences.showReactions && status.reactions.isNotEmpty()) {

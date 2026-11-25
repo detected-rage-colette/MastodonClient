@@ -30,6 +30,7 @@ data class TimelineStatus(
     val customEmojis: Map<String, String> = emptyMap(),
     val mentions: List<StatusMention> = emptyList(),
     val quoteApproval: String? = null,
+    val quote: StatusQuote? = null,
     val inReplyToId: String? = null,
     val inReplyToAccountId: String? = null,
     val filtered: List<StatusFilterResult>? = null,
@@ -55,6 +56,13 @@ data class StatusPoll(
 data class PollOption(
     val title: String,
     val votesCount: Long?,
+)
+
+@Serializable
+data class StatusQuote(
+    val state: String,
+    val status: TimelineStatus? = null,
+    val quotedStatusId: String? = null,
 )
 
 @Serializable

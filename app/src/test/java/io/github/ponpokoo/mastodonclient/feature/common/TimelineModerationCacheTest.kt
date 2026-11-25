@@ -84,4 +84,40 @@ class TimelineModerationCacheTest {
         cache.apply(source, moderation, testAccount)
         assertEquals(4, conversions)
     }
+
+    @Test fun quoteStatusFollowsAccountModerationWordMuteAndServerFilters() {
+        val cache = TimelineModerationCache(plainText = { it.removePrefix("<p>").removeSuffix("</p>") })
+        val quoted = testStatus("quoted").copy(
+            author = StatusAuthor("quoted-author", "Quoted", "quoted@example.social", ""),
+            contentHtml = "<p>Secret spoiler quote</p>",
+        )
+        val parent = testStatus("parent").copy(quote = StatusQuote("accepted", quoted, quoted.statusId))
+        val source = TimelineUiState(statuses = listOf(parent))
+
+        val visible = cache.apply(source, AccountModerationState(), testAccount).statuses.single()
+        assertEquals("quoted", visible.quote?.status?.statusId)
+
+        val muted = AccountModerationState().changed(testAccount, "quoted-author", AccountRelationship(muting = true))
+        val afterAccountMute = cache.apply(source, muted, testAccount).statuses.single()
+        assertEquals("muted_account", afterAccountMute.quote?.state)
+        assertNull(afterAccountMute.quote?.status)
+
+        val wordMuted = AccountModerationState(wordMutes = mapOf(testAccount.sessionId to listOf("spoiler")))
+        val afterWordMute = cache.apply(source, wordMuted, testAccount).statuses.single()
+        assertEquals("filtered", afterWordMute.quote?.state)
+        assertNull(afterWordMute.quote?.status)
+
+        val warnRule = ServerFilter("warn-rule", "CW warning", setOf("home"), action = "warn")
+        val warnedQuote = quoted.copy(filtered = listOf(StatusFilterResult(warnRule)))
+        val warnedState = TimelineUiState(statuses = listOf(parent.copy(quote = StatusQuote("accepted", warnedQuote, warnedQuote.statusId))))
+        val afterWarn = cache.apply(warnedState, AccountModerationState(), testAccount).statuses.single()
+        assertEquals(listOf("CW warning"), afterWarn.quote?.status?.filterDisplay?.warnings?.map { it.title })
+
+        val hideRule = ServerFilter("hide-rule", "Hidden", setOf("home"), action = "hide")
+        val hiddenQuote = quoted.copy(filtered = listOf(StatusFilterResult(hideRule)))
+        val hiddenState = TimelineUiState(statuses = listOf(parent.copy(quote = StatusQuote("accepted", hiddenQuote, hiddenQuote.statusId))))
+        val afterHide = cache.apply(hiddenState, AccountModerationState(), testAccount).statuses.single()
+        assertEquals("filtered", afterHide.quote?.state)
+        assertNull(afterHide.quote?.status)
+    }
 }

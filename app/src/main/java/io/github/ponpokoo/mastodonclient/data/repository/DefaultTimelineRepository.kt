@@ -1147,7 +1147,7 @@ internal fun reactionAccountsFromResponse(response: JsonElement, reactionName: S
     return collect(response).distinctBy(AccountDto::id)
 }
 
-internal fun StatusDto.toDomain(): TimelineStatus {
+internal fun StatusDto.toDomain(includeQuote: Boolean = true): TimelineStatus {
     val displayed = reblog ?: this
     return TimelineStatus(
         timelineId = id,
@@ -1159,6 +1159,7 @@ internal fun StatusDto.toDomain(): TimelineStatus {
         customEmojis = displayed.emojis.associate { it.shortcode to it.url },
         mentions = displayed.mentions.map { io.github.ponpokoo.mastodonclient.domain.model.StatusMention(it.id, it.acct, it.url) },
         quoteApproval = displayed.quoteApproval?.currentUser,
+        quote = if (includeQuote) displayed.quote?.toDomain() else null,
         filtered = if (displayed.filtered == null && filtered == null) null else (displayed.filtered.orEmpty() + if (reblog != null) filtered.orEmpty() else emptyList())
             .map { it.toDomain() },
         inReplyToId = displayed.inReplyToId,
@@ -1229,6 +1230,18 @@ private fun mediaAspectRatio(width: Int?, height: Int?, aspect: Float?): Float? 
     } else {
         aspect?.takeIf { it.isFinite() && it > 0f }
     }
+
+private fun io.github.ponpokoo.mastodonclient.data.remote.dto.StatusQuoteDto.toDomain(): io.github.ponpokoo.mastodonclient.domain.model.StatusQuote {
+    val normalizedState = state?.lowercase(java.util.Locale.ROOT)?.takeIf(String::isNotBlank)
+        ?: if (quotedStatus != null) "accepted" else "unauthorized"
+    val mappedStatus = if (normalizedState == "accepted") quotedStatus?.toDomain(includeQuote = false) else null
+    val targetId = mappedStatus?.statusId ?: quotedStatus?.id ?: quotedStatusId?.takeIf(String::isNotBlank)
+    return io.github.ponpokoo.mastodonclient.domain.model.StatusQuote(
+        state = normalizedState,
+        status = mappedStatus,
+        quotedStatusId = targetId,
+    )
+}
 
 private fun io.github.ponpokoo.mastodonclient.data.remote.dto.PollDto.toDomain() =
     io.github.ponpokoo.mastodonclient.domain.model.StatusPoll(

@@ -42,11 +42,51 @@ internal fun moderationPlainText(html: String): String = if ('<' in html || '&' 
     androidx.core.text.HtmlCompat.fromHtml(html, androidx.core.text.HtmlCompat.FROM_HTML_MODE_LEGACY).toString()
 else html
 
-private fun TimelineStatus.present(m: AccountModerationState, s: AccountSession, context: String?): TimelineStatus =
-    if (!m.applyServerFilters || context == null) this else copy(filterDisplay = filterPresentation(context, current = m.serverFilters[s.sessionId]), filterScope = s.sessionId + s.instanceUrl)
+private fun TimelineStatus.present(
+    m: AccountModerationState,
+    s: AccountSession,
+    textCache: ModerationTextCache? = null,
+    context: String?,
+): TimelineStatus {
+    val presentedSelf = if (!m.applyServerFilters || context == null) this
+    else copy(filterDisplay = filterPresentation(context, current = m.serverFilters[s.sessionId]), filterScope = s.sessionId + s.instanceUrl)
+    return presentedSelf.withModeratedQuote(m, s, textCache, context)
+}
+
+internal fun TimelineStatus.moderatedReference(
+    m: AccountModerationState,
+    s: AccountSession,
+    textCache: ModerationTextCache? = null,
+    context: String? = null,
+): TimelineStatus? {
+    if (m.hides(s, this) || matchesWordMute(m.wordMutes[s.sessionId].orEmpty(), textCache)) return null
+    val presented = if (!m.applyServerFilters || context == null) this
+    else copy(filterDisplay = filterPresentation(context, current = m.serverFilters[s.sessionId]), filterScope = s.sessionId + s.instanceUrl)
+    if (m.applyServerFilters && context != null && presented.filterDisplay.hidden) return null
+    return presented
+}
+
+internal fun TimelineStatus.withModeratedQuote(
+    m: AccountModerationState,
+    s: AccountSession,
+    textCache: ModerationTextCache? = null,
+    context: String? = null,
+): TimelineStatus {
+    val currentQuote = quote ?: return this
+    val quotedStatus = currentQuote.status ?: return this
+    val moderated = quotedStatus.moderatedReference(m, s, textCache, context)
+    val nextQuote = if (moderated != null) {
+        if (moderated == quotedStatus) currentQuote else currentQuote.copy(status = moderated)
+    } else {
+        val hiddenState = if (m.hides(s, quotedStatus)) "muted_account" else "filtered"
+        currentQuote.copy(state = hiddenState, status = null)
+    }
+    return if (nextQuote == currentQuote) this else copy(quote = nextQuote)
+}
+
 private fun List<TimelineStatus>.visible(m: AccountModerationState, s: AccountSession, textCache: ModerationTextCache? = null, context: String? = null) =
     filterNot { m.hides(s, it) || it.matchesWordMute(m.wordMutes[s.sessionId].orEmpty(), textCache) }
-        .map { it.present(m, s, context) }.filterNot { m.applyServerFilters && context != null && it.filterDisplay.hidden }
+        .map { it.present(m, s, textCache, context) }.filterNot { m.applyServerFilters && context != null && it.filterDisplay.hidden }
 private fun UserProfile.visible(m: AccountModerationState, s: AccountSession, textCache: ModerationTextCache? = null) =
     copy(statuses = statuses.visible(m, s, textCache, "account"), pinnedStatuses = pinnedStatuses.visible(m, s, textCache, "account"))
 private fun Map<ProfileStatusTab, ProfileTabUiState>.visible(m: AccountModerationState, s: AccountSession, textCache: ModerationTextCache? = null) =
@@ -63,7 +103,7 @@ internal fun NotificationsUiState.withModeration(m: AccountModerationState, s: A
     fun present(rows: List<TimelineNotification>) = rows.filterNot {
         m.hides(s, it) || it.status?.matchesWordMute(m.wordMutes[s.sessionId].orEmpty(), textCache) == true
     }.map { notification ->
-        notification.copy(status = notification.status?.present(m, s, "notifications"))
+        notification.copy(status = notification.status?.present(m, s, textCache, "notifications"))
     }.filterNot { m.applyServerFilters && it.status?.filterDisplay?.hidden == true }
     val visible = present(notifications)
     val filteredLists = lists.mapValues { (_, list) -> list.copy(notifications = present(list.notifications)) }
@@ -110,7 +150,7 @@ internal fun StatusDetailUiState.withModeration(m: AccountModerationState, s: Ac
         errorMessage = "ミュートまたはブロック中のアカウントの投稿です")
     if (current.status.matchesWordMute(m.wordMutes[s.sessionId].orEmpty(), textCache)) return copy(detail = null, isLoading = false,
         errorMessage = "ワードミュートに一致する投稿です")
-    val status = current.status.present(m, s, "thread")
+    val status = current.status.present(m, s, textCache, "thread")
     if (m.applyServerFilters && status.filterDisplay.hidden) return copy(detail = null, isLoading = false, errorMessage = "フィルターで非表示の投稿です")
     return copy(detail = current.copy(status = status, ancestors = current.ancestors.visible(m, s, textCache, "thread"), descendants = current.descendants.visible(m, s, textCache, "thread")))
 }

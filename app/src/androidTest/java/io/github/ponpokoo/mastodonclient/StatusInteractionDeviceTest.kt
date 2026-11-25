@@ -43,6 +43,7 @@ import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -626,6 +627,63 @@ class StatusInteractionDeviceTest {
 
         composeRule.onNodeWithText("返信先: @bob@social.example").performClick()
         composeRule.runOnIdle { assertEquals("author", openedAccount.get()) }
+    }
+
+    @Test
+    fun quoteAndResolvedReplyRenderCompactCardsAndOpenReferencedStatuses() {
+        val openedStatus = AtomicReference<String?>(null)
+        val parentStatus = status().copy(
+            timelineId = "parent",
+            statusId = "parent",
+            author = StatusAuthor("parent-author", "Alice", "alice@social.example", ""),
+            contentHtml = "<p>Parent post text</p>",
+        )
+        val quotedStatus = status().copy(
+            timelineId = "quoted",
+            statusId = "quoted",
+            author = StatusAuthor("quoted-author", "Carol", "carol@social.example", ""),
+            contentHtml = "<p>Quoted post text</p>",
+        )
+        val resolver = object : io.github.ponpokoo.mastodonclient.feature.common.ReplyParentResolver {
+            override fun peek(statusId: String) =
+                if (statusId == "parent") io.github.ponpokoo.mastodonclient.feature.common.ReplyParentState.Available(parentStatus)
+                else io.github.ponpokoo.mastodonclient.feature.common.ReplyParentState.Unavailable
+            override fun observe(statusId: String) = flowOf(peek(statusId))
+            override suspend fun ensureLoaded(statusId: String) = Unit
+        }
+        showContent {
+            MaterialTheme {
+                CompositionLocalProvider(
+                    io.github.ponpokoo.mastodonclient.feature.common.LocalReplyParentResolver provides resolver,
+                ) {
+                    StatusCard(
+                        status = status().copy(
+                            inReplyToId = "parent",
+                            inReplyToAccountId = "parent-author",
+                            quote = io.github.ponpokoo.mastodonclient.domain.model.StatusQuote(
+                                state = "accepted",
+                                status = quotedStatus,
+                                quotedStatusId = "quoted",
+                            ),
+                        ),
+                        onStatusClick = openedStatus::set,
+                        onUnavailableAction = {},
+                    )
+                }
+            }
+        }
+
+        composeRule.onNodeWithTag("status_reply_reference").assertIsDisplayed()
+        composeRule.onNodeWithTag("status_quote_reference").assertIsDisplayed()
+        composeRule.onNodeWithText("Parent post text").assertIsDisplayed()
+        composeRule.onNodeWithText("Quoted post text").assertIsDisplayed()
+        composeRule.onAllNodesWithText("@alice@social.example").assertCountEquals(0)
+        composeRule.onAllNodesWithText("@carol@social.example").assertCountEquals(0)
+
+        composeRule.onNodeWithTag("status_quote_reference").performClick()
+        composeRule.runOnIdle { assertEquals("quoted", openedStatus.get()) }
+        composeRule.onNodeWithTag("status_reply_reference").performClick()
+        composeRule.runOnIdle { assertEquals("parent", openedStatus.get()) }
     }
 
     private fun status() = TimelineStatus(
