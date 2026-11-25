@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -94,6 +96,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.aspectRatio
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import io.github.ponpokoo.mastodonclient.domain.model.CustomEmoji
@@ -143,7 +146,7 @@ private val standardReactions = listOf(
 
 internal enum class EmojiPickerSheetMotion { HeaderOnly, Standard }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun EmojiPickerSheet(
     data: EmojiPickerDataState,
@@ -374,9 +377,13 @@ internal fun EmojiPickerSheet(
                 val savedEmojis = if (showFavorites) visibleFavorites else if (showHistory) visibleHistory else emptyList()
                 if (savedEmojis.isNotEmpty()) {
                     if (selectedCategory.key == "all") item(key = "history-header") { ReactionCategory("履歴") }
-                    items(savedEmojis.chunked(columns), key = { "saved-${it.first()}" }) { row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                            row.forEach { name ->
+                    item(key = "saved-flow") {
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            savedEmojis.forEach { name ->
                                 standardReactions.firstOrNull { it.emoji == name }?.let { reaction ->
                                     ReactionEmojiTile(reaction.emoji, cellSize,
                                         onLongClick = { if (showFavorites) pendingFavoriteDeletion = name else pendingDeletion = name }) { onSelected(reaction.emoji) }
@@ -413,9 +420,13 @@ internal fun EmojiPickerSheet(
                 if (showCustomLoading) loadError?.let { message -> item(key = "error") { Text(message, Modifier.padding(12.dp)) } }
                 customGroups.forEach { (category, emojis) ->
                     if (selectedCategory.key == "all") item(key = "custom-header-$category") { ReactionCategory("カスタム · $category") }
-                    items(emojis.chunked(columns), key = { "custom-${it.first().shortcode}" }) { row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                            row.forEach { emoji ->
+                    items(emojis.chunked(columns * 4), key = { "custom-${it.first().shortcode}" }) { group ->
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            group.forEach { emoji ->
                                 CustomReactionEmojiTile(emoji, cellSize,
                                     onLongClick = { openPreview(emoji.shortcode) }) { onSelected(emoji.shortcode) }
                             }
@@ -501,7 +512,7 @@ internal fun EmojiPickerSheet(
                 Column {
                     Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
                         if (emoji.custom != null) AsyncImage(
-                            model = emoji.custom.staticUrl.ifBlank { emoji.custom.url },
+                            model = emoji.custom.url.ifBlank { emoji.custom.staticUrl },
                             contentDescription = emoji.label,
                             modifier = Modifier.fillMaxWidth().height(168.dp),
                             contentScale = ContentScale.Fit,
@@ -597,7 +608,7 @@ private fun PickerCategoryIcon(category: PickerCategory, preserveImageWidth: Boo
     if (emoji == null) Icon(category.icon, contentDescription = null, modifier = Modifier.size(24.dp))
     else {
         val fallback = rememberVectorPainter(category.icon)
-        val url = emoji.staticUrl.ifBlank { emoji.url }
+        val url = emoji.url.ifBlank { emoji.staticUrl }
         val context = LocalContext.current
         var ratio by rememberSaveable(url) { mutableFloatStateOf(1f) }
         val request = remember(context, url, preserveImageWidth) {
@@ -612,7 +623,9 @@ private fun PickerCategoryIcon(category: PickerCategory, preserveImageWidth: Boo
                 val image = it.result.image
                 if (image.width > 0 && image.height > 0) ratio = image.width.toFloat() / image.height
             },
-            modifier = Modifier.height(24.dp).width(24.dp * if (preserveImageWidth) ratio else 1f)
+            modifier = Modifier
+                .height(24.dp)
+                .aspectRatio(if (preserveImageWidth) ratio else 1f)
                 .testTag("reaction_category_image:${category.key}"),
             contentScale = ContentScale.Fit)
     }
@@ -632,18 +645,45 @@ private fun ReactionEmojiTile(emoji: String, cellSize: androidx.compose.ui.unit.
 @OptIn(ExperimentalFoundationApi::class)
 private fun CustomReactionEmojiTile(emoji: CustomEmoji, cellSize: androidx.compose.ui.unit.Dp,
     onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
-    Box(Modifier.width(cellSize).height(cellSize + 18.dp)
+    val url = emoji.url.ifBlank { emoji.staticUrl }
+    val context = LocalContext.current
+    val imageHeight = (cellSize - 4.dp).coerceAtLeast(0.dp)
+    var ratio by rememberSaveable(url) { mutableFloatStateOf(1f) }
+    val request = remember(context, url) {
+        ImageRequest.Builder(context)
+            .data(url)
+            .size(coil3.size.Size.ORIGINAL)
+            .build()
+    }
+    val imageWidth = imageHeight * ratio
+    val tileWidth = maxOf(cellSize, imageWidth + 4.dp)
+    Box(Modifier.width(tileWidth).height(cellSize + 18.dp)
         .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             AsyncImage(
-                model = emoji.staticUrl.ifBlank { emoji.url },
+                model = request,
                 contentDescription = ":${emoji.shortcode}:",
-                modifier = Modifier.size(cellSize - 4.dp),
+                modifier = Modifier
+                    .height(imageHeight)
+                    .width(imageWidth)
+                    .testTag("reaction_custom_image:${emoji.shortcode}"),
                 contentScale = ContentScale.Fit,
+                onSuccess = { imageResult ->
+                    val image = imageResult.result.image
+                    if (image.width > 0 && image.height > 0) {
+                        ratio = image.width.toFloat() / image.height
+                    }
+                },
             )
-            Text(emoji.shortcode, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                emoji.shortcode,
+                fontSize = 9.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.widthIn(max = tileWidth),
+            )
         }
     }
 }

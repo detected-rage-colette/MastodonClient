@@ -1307,6 +1307,54 @@ class DefaultTimelineRepositoryTest {
         }
     }
 
+    @Test fun mapsFedibirdDirectAndMutedQuotePayloads() = runTest {
+        MockWebServer().use { server ->
+            val fedibirdQuoted = """{
+                "id":"q-direct",
+                "created_at":"2026-09-08T00:00:00Z",
+                "account":{"id":"2","username":"carol","acct":"carol@remote.example","display_name":"Carol"},
+                "content":"<p>direct quoted body</p>",
+                "quote":null,
+                "quote_muted":false
+            }"""
+            val fedibirdMutedQuote = """{
+                "id":"q-muted",
+                "created_at":"2026-09-08T00:00:00Z",
+                "account":{"id":"3","username":"muted","acct":"muted@remote.example"},
+                "content":"<p>muted body</p>",
+                "quote":null,
+                "quote_muted":true
+            }"""
+            val json = """[
+                ${basicStatusJson("f1").dropLast(1)},"quote_id":"q-direct","quote":$fedibirdQuoted},
+                ${basicStatusJson("f2").dropLast(1)},"quote_id":"q-muted","quote":$fedibirdMutedQuote},
+                ${basicStatusJson("f3").dropLast(1)},"quote_id":"q-compact","quote":"q-compact"}
+            ]"""
+            server.enqueue(MockResponse().setBody(json))
+            val statuses = DefaultTimelineRepository(ApiClientFactory())
+                .getHomeTimeline(testSession(server)).getOrThrow().statuses
+            assertEquals(3, statuses.size)
+
+            val direct = statuses[0].quote!!
+            assertEquals("accepted", direct.state)
+            assertEquals("q-direct", direct.quotedStatusId)
+            val directStatus = direct.status!!
+            assertEquals("q-direct", directStatus.statusId)
+            assertEquals("Carol", directStatus.author.displayName)
+            assertNull(directStatus.quote)
+
+            val muted = statuses[1].quote!!
+            assertEquals("muted_account", muted.state)
+            assertEquals("q-muted", muted.quotedStatusId)
+            assertNull(muted.status)
+
+            val compact = statuses[2].quote!!
+            assertEquals("accepted", compact.state)
+            assertEquals("q-compact", compact.quotedStatusId)
+            assertNull(compact.status)
+        }
+    }
+
     private fun testSession(server: MockWebServer) = AccountSession(
         sessionId = "session",
         instanceUrl = server.url("/").toString().removeSuffix("/"),

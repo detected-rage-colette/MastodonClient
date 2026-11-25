@@ -2,6 +2,13 @@ package io.github.ponpokoo.mastodonclient.data.remote.dto
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonTransformingSerializer
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 
 @Serializable
 data class StatusDto(
@@ -29,7 +36,7 @@ data class StatusDto(
     val emojis: List<AccountEmojiDto> = emptyList(),
     val mentions: List<StatusMentionDto> = emptyList(),
     @SerialName("quote_approval") val quoteApproval: QuoteApprovalDto? = null,
-    val quote: StatusQuoteDto? = null,
+    @Serializable(with = StatusQuoteSerializer::class) val quote: StatusQuoteDto? = null,
     val card: PreviewCardDto? = null,
     val poll: PollDto? = null,
     @SerialName("media_attachments") val mediaAttachments: List<MediaAttachmentDto> = emptyList(),
@@ -81,6 +88,31 @@ data class StatusQuoteDto(
     @SerialName("quoted_status") val quotedStatus: StatusDto? = null,
     @SerialName("quoted_status_id") val quotedStatusId: String? = null,
 )
+
+/** Normalizes both Mastodon 4.5 Quote wrappers and Fedibird direct Status/ID quote payloads. */
+object StatusQuoteSerializer : JsonTransformingSerializer<StatusQuoteDto>(StatusQuoteDto.serializer()) {
+    override fun transformDeserialize(element: JsonElement): JsonElement {
+        if (element is JsonPrimitive) {
+            val id = element.contentOrNull?.takeIf(String::isNotBlank) ?: return element
+            return buildJsonObject {
+                put("state", JsonPrimitive("accepted"))
+                put("quoted_status_id", JsonPrimitive(id))
+            }
+        }
+        val obj = element as? JsonObject ?: return element
+        if ("state" in obj || "quoted_status" in obj || "quoted_status_id" in obj) return obj
+        if ("id" in obj && "account" in obj) {
+            val quotedId = (obj["id"] as? JsonPrimitive)?.contentOrNull
+            val muted = (obj["quote_muted"] as? JsonPrimitive)?.booleanOrNull == true
+            return buildJsonObject {
+                put("state", JsonPrimitive(if (muted) "muted_account" else "accepted"))
+                if (!muted) put("quoted_status", obj)
+                quotedId?.let { put("quoted_status_id", JsonPrimitive(it)) }
+            }
+        }
+        return obj
+    }
+}
 
 @Serializable
 data class StatusApplicationDto(

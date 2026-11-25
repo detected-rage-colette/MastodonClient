@@ -415,9 +415,9 @@ internal fun StatusCard(
                     )
                 }
                 status.quote?.let { quote ->
-                    Spacer(Modifier.height(8.dp))
                     val quotedStatus = quote.status
                     if (quote.state == "accepted" && quotedStatus != null) {
+                        Spacer(Modifier.height(8.dp))
                         StatusReferenceCard(
                             status = quotedStatus,
                             referenceKey = "quote:${status.timelineId}",
@@ -428,7 +428,8 @@ internal fun StatusCard(
                             onOpenLink = onOpenLink,
                             modifier = Modifier.testTag("status_quote_reference"),
                         )
-                    } else {
+                    } else if (quote.state != "accepted") {
+                        Spacer(Modifier.height(8.dp))
                         StatusQuotePlaceholder(quote.state)
                     }
                 }
