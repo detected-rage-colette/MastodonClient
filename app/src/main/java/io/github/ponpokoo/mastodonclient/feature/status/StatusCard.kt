@@ -100,6 +100,7 @@ import java.util.Locale
 import io.github.ponpokoo.mastodonclient.feature.timeline.relativeTime
 import io.github.ponpokoo.mastodonclient.feature.timeline.ReactionPickerSheet
 import io.github.ponpokoo.mastodonclient.feature.emoji.EmojiPickerSheetMotion
+import io.github.ponpokoo.mastodonclient.ui.theme.boostedStatusContainer
 import io.github.ponpokoo.mastodonclient.ui.theme.reactionSelectedOutline
 import io.github.ponpokoo.mastodonclient.ui.theme.onReactionSelectedContainer
 import io.github.ponpokoo.mastodonclient.ui.theme.FavouriteIconColor
@@ -165,9 +166,15 @@ internal fun StatusCard(
     }
     val contentStart = avatarSize + 8.dp
     val headerEdgeShift = if (onMoreClick == null) 0.dp else 16.dp
+    val cardBackground = if (status.boostedBy != null && showBoostAttribution) {
+        MaterialTheme.colorScheme.boostedStatusContainer
+    } else {
+        null
+    }
 
     Column(
         modifier = Modifier.fillMaxWidth()
+            .then(if (cardBackground != null) Modifier.background(cardBackground) else Modifier)
             .then(if (onStatusClick == null || !filterContentVisible) Modifier else Modifier.clickable { onStatusClick(status.statusId) })
             .padding(start = 8.dp, top = 12.dp, end = 16.dp, bottom = 2.dp)
             .testTag("timeline_status"),
@@ -207,7 +214,7 @@ internal fun StatusCard(
                             onAuthorClick(status.author.id)
                         },
                     )
-                    .background(MaterialTheme.colorScheme.surface),
+                    .background(cardBackground ?: MaterialTheme.colorScheme.surface),
                 contentScale = ContentScale.Crop,
             )
             Spacer(Modifier.width(8.dp))

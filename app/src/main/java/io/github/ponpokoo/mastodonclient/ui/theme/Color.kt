@@ -32,3 +32,6 @@ internal val ColorScheme.onComposeSubmitContainer: Color
 
 internal val ColorScheme.composeSubmitPressedContainer: Color
     get() = if (surface.luminance() < 0.5f) Color(0xFF2A405B) else Color(0xFFAAAFE8)
+
+internal val ColorScheme.boostedStatusContainer: Color
+    get() = if (surface.luminance() < 0.5f) Color(0xFF242933) else Color(0xFFF4F4FF)
