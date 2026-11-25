@@ -1,5 +1,6 @@
 package io.github.ponpokoo.mastodonclient.feature.emoji
 
+import android.util.LruCache
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -60,6 +61,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -89,6 +91,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.dismiss
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
@@ -96,6 +99,7 @@ import coil3.request.ImageRequest
 import io.github.ponpokoo.mastodonclient.domain.model.CustomEmoji
 import io.github.ponpokoo.mastodonclient.feature.common.SearchInput
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 private data class StandardReaction(val emoji: String, val label: String, val category: String)
 private data class PickerEmoji(val name: String, val label: String, val custom: CustomEmoji? = null)
@@ -436,7 +440,7 @@ internal fun EmojiPickerSheet(
                 }
                 if (showFavorites && favoritesError != null) item(key = "favorites-error") {
                     Column {
-                        Text(favoritesError!!, Modifier.padding(12.dp))
+                        Text(favoritesError, Modifier.padding(12.dp))
                         TextButton(onClick = { actions.retryFavorites() }) { Text("再試行") }
                     }
                 }
